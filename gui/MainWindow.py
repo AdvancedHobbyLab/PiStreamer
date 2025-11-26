@@ -1,6 +1,7 @@
 
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy
 from PyQt6.QtCore import QSettings
+from PyQt6.QtGui import QIcon
 from core.PlaybackController import PlaybackController
 from gui.SettingsDialog import SettingsDialog
 
@@ -14,6 +15,7 @@ class MainWindow(QMainWindow):
         self._playback.state_change.connect(self.__playback_state_change)
         
         self.setWindowTitle("Pi Streamer")
+        self.setWindowIcon(QIcon.fromTheme("com.ahl.pistreamer"))
         
         # Central widget
         central_widget = QWidget()

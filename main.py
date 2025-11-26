@@ -17,7 +17,7 @@ def main():
             min-height: 60px;
         }
     """)
-
+    
     # Create and show the main window
     window = MainWindow()
     window.show()
