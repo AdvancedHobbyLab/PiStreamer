@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
         info_layout = QGridLayout()
         info_layout.setColumnStretch(0, 0)
         info_layout.setColumnStretch(1, 1)
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout()
         vbox.addLayout(info_layout)
         vbox.addStretch(1)
         info.setLayout(vbox)
