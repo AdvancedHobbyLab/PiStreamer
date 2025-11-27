@@ -15,7 +15,16 @@ class MainWindow(QMainWindow):
         self._playback.state_change.connect(self.__playback_state_change)
         
         self.setWindowTitle("Pi Streamer")
-        self.setWindowIcon(QIcon.fromTheme("com.ahl.pistreamer"))
+        
+        # Set Window Icon
+        icon = QIcon.fromTheme(
+            "com.ahl.pistreamer",
+            QIcon("./icon.svg")
+        )
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+        else:
+            print("Unable to find window icon.")
         
         # Central widget
         central_widget = QWidget()

@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-# main.py
 import sys
 from PyQt6.QtWidgets import QApplication
 from gui.MainWindow import MainWindow
@@ -8,6 +7,11 @@ from gui.MainWindow import MainWindow
 def main():
     # Create the Qt Application
     app = QApplication(sys.argv)
+    app.setOrganizationDomain("com")
+    app.setOrganizationName("ahl")
+    app.setApplicationName("PiStreamer")
+    app.setDesktopFileName("pistreamer")
+    app.setDesktopSettingsAware(True)
 
     # Set global style (touch-friendly)
     app.setStyleSheet("""
