@@ -7,8 +7,8 @@ from PyQt6.QtCore import QSettings
 import sys
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings):
-        super().__init__()
+    def __init__(self, settings, parent):
+        super().__init__(parent)
         self.setWindowTitle("Settings")
 
         layout = QVBoxLayout()

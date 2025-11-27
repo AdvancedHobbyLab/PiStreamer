@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
             self._playback.start_playback()
     
     def _settings_button_clicked(self, clicked):
-        dialog = SettingsDialog(self._settings)
+        dialog = SettingsDialog(self._settings, self)
         dialog.exec()
     
     def _exit_button_clicked(self, clicked):
