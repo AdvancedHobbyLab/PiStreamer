@@ -27,27 +27,43 @@ class PlaybackController(QObject):
         if self.__process.state() != QProcess.ProcessState.NotRunning:
             return
 
+        # Input options
         self.__settings.beginGroup("Input")
         device = self.__settings.value("device", "/dev/video0")
         self.__settings.endGroup()
-
-        self.__settings.beginGroup("Output")
-        output_address = self.__settings.value("address", "127.0.0.1:5000")
-        self.__settings.endGroup()
-        
-        command = [
-            "ffmpeg",
+        input_options = [
             "-f", "v4l2",
             "-input_format", "rgb24",
             "-video_size", "1920x1080",
-            "-i", device,
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-tune", "zerolatency",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-f", "mpegts", "udp://"+output_address
+            "-i", device
         ]
+
+        # Encoder Options
+        encoder_options = []
+        self.__settings.beginGroup("Encoder")
+        encoder = self.__settings.value("encoder", "libx264")
+        encoder_options += ["-c:v", encoder]
+        if encoder == "libx264":
+            encoder_options += [
+                "-preset", "veryfast",
+                "-tune", "zerolatency",
+                "-crf", str(self.__settings.value("crf", "0")),
+                "-pix_fmt", "yuv420p",
+            ]
+        self.__settings.endGroup()
+
+        # Output Options
+        self.__settings.beginGroup("Output")
+        output_address = self.__settings.value("address", "127.0.0.1:5000")
+        self.__settings.endGroup()
+        output_options = [
+            "-f",
+            "mpegts",
+            "udp://" + output_address
+        ]
+
+        command = ["ffmpeg"] + input_options + encoder_options + output_options
+        print("Running: " + " ".join(command))
         self.__process.start(command[0], command[1:])
     
     @pyqtSlot()
