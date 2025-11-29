@@ -30,10 +30,11 @@ class PlaybackController(QObject):
         # Input options
         self.__settings.beginGroup("Input")
         device = self.__settings.value("device", "/dev/video0")
+        format = self.__settings.value("format", "rgb24")
         self.__settings.endGroup()
         input_options = [
             "-f", "v4l2",
-            "-input_format", "rgb24",
+            "-input_format", format,
             "-video_size", "1920x1080",
             "-i", device
         ]
@@ -92,7 +93,7 @@ class PlaybackController(QObject):
     @pyqtSlot()
     def __handle_error(self):
         data = self.__process.readAllStandardError().data().decode("utf-8")
-        
+
         # Use regex to extract FPS, frame count, bitrate
         fps_match = re.search(r'fps=\s*([\d\.]+)', data)
         frame_match = re.search(r'frame=\s*(\d+)', data)

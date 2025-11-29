@@ -16,6 +16,11 @@ class InputTab(QWidget):
         self.device_edit = QLineEdit()
         layout.addWidget(self.device_edit, 0, 1)
 
+        layout.addWidget(QLabel("Format: "), 1, 0)
+        self.format = QComboBox()
+        self.format.addItems(["rgb24", "mjpeg"])
+        layout.addWidget(self.format)
+
         self.setLayout(layout)
 
     def LoadSettings(self, settings):
@@ -23,6 +28,7 @@ class InputTab(QWidget):
         settings.beginGroup("Input")
 
         self.device_edit.setText(settings.value("device", ""))
+        self.format.setCurrentText(settings.value("format", "rgb24"))
 
         settings.endGroup()
 
@@ -31,6 +37,7 @@ class InputTab(QWidget):
         settings.beginGroup("Input")
 
         settings.setValue("device", self.device_edit.text())
+        settings.setValue("format", self.format.currentText())
 
         settings.endGroup()
 
