@@ -43,6 +43,7 @@ class InputTab(QWidget):
             item = model.item(row)
             if item.data(Qt.ItemDataRole.UserRole) == device:
                 self.device.setCurrentIndex(row)
+                self.__device_changed(row)
                 break
 
         self.format.setCurrentText(settings.value("format", "rgb24"))
