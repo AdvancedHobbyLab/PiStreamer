@@ -46,7 +46,13 @@ class InputTab(QWidget):
                 self.__device_changed(row)
                 break
 
-        self.format.setCurrentText(settings.value("format", "rgb24"))
+        format = settings.value("format", "rgb24")
+        model = self.format.model()
+        for row in range(model.rowCount()):
+            item = model.item(row, 1)
+            if item.text() == format:
+                self.format.setCurrentIndex(row)
+                break
 
         settings.endGroup()
 
