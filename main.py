@@ -15,6 +15,9 @@ def main():
 
     # Set global style (touch-friendly)
     app.setStyleSheet("""
+        * {
+            font-size: 18px;
+        }
         QPushButton {
             font-size: 18px;
             min-width: 60px;
