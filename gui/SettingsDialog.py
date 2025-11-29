@@ -55,7 +55,7 @@ class InputTab(QWidget):
         settings.beginGroup("Input")
 
         settings.setValue("device", self.device.currentData())
-        settings.setValue("format", self.format.currentText())
+        settings.setValue("format", self.format.model().item(self.format.currentIndex(), 1).text())
 
         settings.endGroup()
 
