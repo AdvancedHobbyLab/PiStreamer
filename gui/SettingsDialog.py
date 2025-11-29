@@ -2,32 +2,49 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget, QComboBox, QSpinBox
 )
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import Qt, QSettings
+from core.PlaybackOptions import PlaybackOptions
 
 import sys
 
 class InputTab(QWidget):
-    def __init__(self):
+    def __init__(self, options):
         super().__init__()
-        
+
+        self.options = options
+
         layout = QGridLayout()
 
         layout.addWidget(QLabel("Device: "), 0, 0)
-        self.device_edit = QLineEdit()
-        layout.addWidget(self.device_edit, 0, 1)
+        self.device = QComboBox()
+        self.device.setModel(options.GetDevices())
+        self.device.currentIndexChanged.connect(self.__device_changed)
+        layout.addWidget(self.device, 0, 1)
 
         layout.addWidget(QLabel("Format: "), 1, 0)
         self.format = QComboBox()
-        self.format.addItems(["rgb24", "mjpeg"])
         layout.addWidget(self.format)
 
         self.setLayout(layout)
+
+    def __device_changed(self, index):
+        device = self.device.model().item(self.device.currentIndex()).data(Qt.ItemDataRole.UserRole)
+        model = self.options.GetFormats(device)
+        self.format.setModel(model)
+        self.format.setModelColumn(2)
 
     def LoadSettings(self, settings):
 
         settings.beginGroup("Input")
 
-        self.device_edit.setText(settings.value("device", ""))
+        device = settings.value("device", "/dev/video0")
+        model = self.device.model()
+        for row in range(model.rowCount()):
+            item = model.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == device:
+                self.device.setCurrentIndex(row)
+                break
+
         self.format.setCurrentText(settings.value("format", "rgb24"))
 
         settings.endGroup()
@@ -36,13 +53,13 @@ class InputTab(QWidget):
 
         settings.beginGroup("Input")
 
-        settings.setValue("device", self.device_edit.text())
+        settings.setValue("device", self.device.currentData())
         settings.setValue("format", self.format.currentText())
 
         settings.endGroup()
 
 class OutputTab(QWidget):
-    def __init__(self):
+    def __init__(self, options):
         super().__init__()
 
         address_layout = QHBoxLayout()
@@ -71,7 +88,7 @@ class OutputTab(QWidget):
 
 
 class EncoderTab(QWidget):
-    def __init__(self):
+    def __init__(self, options):
         super().__init__()
 
         layout = QGridLayout()
@@ -131,12 +148,14 @@ class SettingsDialog(QDialog):
 
         layout = QVBoxLayout()
 
+        options = PlaybackOptions()
+
         # Setup Tabs
         tabs = QTabWidget()
         self.__tabs = [
-            InputTab(),
-            EncoderTab(),
-            OutputTab()
+            InputTab(options),
+            EncoderTab(options),
+            OutputTab(options)
         ]
         display_names = ["Input", "Encoder", "Output"]
         for tab, label in zip(self.__tabs, display_names):
