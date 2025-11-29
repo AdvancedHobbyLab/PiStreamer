@@ -1,27 +1,91 @@
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QCheckBox, QPushButton
+    QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget
 )
 from PyQt6.QtCore import QSettings
 
 import sys
 
+class InputTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        
+        layout = QGridLayout()
+
+        layout.addWidget(QLabel("Device: "), 0, 0)
+        self.device_edit = QLineEdit()
+        layout.addWidget(self.device_edit, 0, 1)
+
+        self.setLayout(layout)
+
+    def LoadSettings(self, settings):
+
+        settings.beginGroup("Input")
+
+        self.device_edit.setText(settings.value("device", ""))
+
+        settings.endGroup()
+
+    def SaveSettings(self, settings):
+
+        settings.beginGroup("Input")
+
+        settings.setValue("device", self.device_edit.text())
+
+        settings.endGroup()
+
+class OutputTab(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        address_layout = QHBoxLayout()
+
+        address_layout.addWidget(QLabel("Address:"))
+        self.address_edit = QLineEdit()
+        address_layout.addWidget(self.address_edit)
+
+        self.setLayout(address_layout)
+
+    def LoadSettings(self, settings):
+
+        settings.beginGroup("Output")
+
+        self.address_edit.setText(settings.value("address", "127.0.0.1:5000"))
+
+        settings.endGroup()
+
+    def SaveSettings(self, settings):
+
+        settings.beginGroup("Output")
+
+        settings.setValue("address", self.address_edit.text())
+
+        settings.endGroup()
+
 class SettingsDialog(QDialog):
     def __init__(self, settings, parent):
         super().__init__(parent)
+
+        self.__settings = settings
+
         self.setWindowTitle("Settings")
 
         layout = QVBoxLayout()
-        
-        self.__settings = settings
-        
-        self.__settings.beginGroup("Output")
-        address_layout = QHBoxLayout()
-        address_layout.addWidget(QLabel("Address:"))
-        self.address_edit = QLineEdit(settings.value("address", "127.0.0.1:5000"))
-        address_layout.addWidget(self.address_edit)
-        layout.addLayout(address_layout)
-        self.__settings.endGroup()
+
+        # Setup Tabs
+        tabs = QTabWidget()
+        self.__tabs = [
+            InputTab(),
+            OutputTab()
+        ]
+        display_names = ["Input", "Output"]
+        for tab, label in zip(self.__tabs, display_names):
+            tabs.addTab(tab, label)
+
+        for tab in self.__tabs:
+            tab.LoadSettings(self.__settings)
+
+        layout.addWidget(tabs)
 
         # Buttons: Save / Cancel
         buttons_layout = QHBoxLayout()
@@ -39,6 +103,5 @@ class SettingsDialog(QDialog):
         self.setLayout(layout)
 
     def __save_clicked(self):
-        self.__settings.beginGroup("Output")
-        self.__settings.setValue("address", self.address_edit.text())
-        self.__settings.endGroup()
+        for tab in self.__tabs:
+            tab.SaveSettings(self.__settings)

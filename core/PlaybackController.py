@@ -26,7 +26,11 @@ class PlaybackController(QObject):
         # Check process state
         if self.__process.state() != QProcess.ProcessState.NotRunning:
             return
-        
+
+        self.__settings.beginGroup("Input")
+        device = self.__settings.value("device", "/dev/video0")
+        self.__settings.endGroup()
+
         self.__settings.beginGroup("Output")
         output_address = self.__settings.value("address", "127.0.0.1:5000")
         self.__settings.endGroup()
@@ -36,7 +40,7 @@ class PlaybackController(QObject):
             "-f", "v4l2",
             "-input_format", "rgb24",
             "-video_size", "1920x1080",
-            "-i", "/dev/video0",
+            "-i", device,
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-tune", "zerolatency",
