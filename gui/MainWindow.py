@@ -9,7 +9,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self._settings = QSettings("AHL", "PyStreamer")
+        self._settings = QSettings("AHL", "PiStreamer")
         
         self._playback = PlaybackController(self._settings)
         self._playback.state_change.connect(self.__playback_state_change)
