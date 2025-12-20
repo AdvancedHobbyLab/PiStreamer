@@ -46,7 +46,7 @@ class PlaybackController(QObject):
         encoder_options += ["-c:v", encoder]
         if encoder == "libx264":
             encoder_options += [
-                "-preset", "veryfast",
+                "-preset", "ultrafast",
                 "-tune", "zerolatency",
                 "-crf", str(self.__settings.value("crf", "0")),
                 "-pix_fmt", "yuv420p",
