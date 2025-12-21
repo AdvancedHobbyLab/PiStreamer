@@ -1,27 +1,219 @@
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QCheckBox, QPushButton
+    QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget, QComboBox, QSpinBox,
+    QSizePolicy
 )
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import Qt, QSettings
+from core.PlaybackOptions import PlaybackOptions
 
 import sys
+
+class InputTab(QWidget):
+    def __init__(self, options):
+        super().__init__()
+
+        self.options = options
+
+        layout = QGridLayout()
+
+        layout.addWidget(QLabel("Device: "), 0, 0)
+        self.device = QComboBox()
+        self.device.setModel(options.GetDevices())
+        self.device.currentIndexChanged.connect(self.__device_changed)
+        layout.addWidget(self.device, 0, 1)
+
+        layout.addWidget(QLabel("Format: "), 1, 0)
+        self.format = QComboBox()
+        layout.addWidget(self.format, 1, 1)
+
+        layout.addWidget(QLabel("Resolution: "), 2, 0)
+        self.resolution_width = QSpinBox()
+        self.resolution_width.setMinimum(720)
+        self.resolution_width.setMaximum(4096)
+        self.resolution_height = QSpinBox()
+        self.resolution_height.setMinimum(480)
+        self.resolution_height.setMaximum(2400)
+        resolution_layout = QHBoxLayout()
+        resolution_layout.addWidget(QLabel("Width: "), 0)
+        resolution_layout.addWidget(self.resolution_width, 1)
+        resolution_layout.addWidget(QLabel("Height: "), 0)
+        resolution_layout.addWidget(self.resolution_height, 1)
+        layout.addLayout(resolution_layout, 2, 1)
+
+        layout.addWidget(QLabel("Framerate: "), 3, 0)
+        self.framerate = QSpinBox()
+        self.framerate.setMinimum(10)
+        self.framerate.setMaximum(120)
+        layout.addWidget(self.framerate, 3, 1)
+
+        layout.setRowStretch(4, 1)
+        self.setLayout(layout)
+
+    def __device_changed(self, index):
+        device = self.device.model().item(self.device.currentIndex()).data(Qt.ItemDataRole.UserRole)
+        model = self.options.GetFormats(device)
+        self.format.setModel(model)
+        self.format.setModelColumn(2)
+
+    def LoadSettings(self, settings):
+
+        settings.beginGroup("Input")
+
+        device = settings.value("device", "/dev/video0")
+        model = self.device.model()
+        for row in range(model.rowCount()):
+            item = model.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == device:
+                self.device.setCurrentIndex(row)
+                self.__device_changed(row)
+                break
+
+        format = settings.value("format", "rgb24")
+        model = self.format.model()
+        for row in range(model.rowCount()):
+            item = model.item(row, 1)
+            if item.text() == format:
+                self.format.setCurrentIndex(row)
+                break
+
+        width = settings.value("width", 1920)
+        self.resolution_width.setValue(int(width))
+
+        height = settings.value("height", 1080)
+        self.resolution_height.setValue(int(height))
+
+        framerate = settings.value("framerate", 60)
+        self.framerate.setValue(int(framerate))
+
+        settings.endGroup()
+
+    def SaveSettings(self, settings):
+
+        settings.beginGroup("Input")
+
+        settings.setValue("device", self.device.currentData())
+        settings.setValue("format", self.format.model().item(self.format.currentIndex(), 1).text())
+        settings.setValue("width", self.resolution_width.value())
+        settings.setValue("height", self.resolution_height.value())
+        settings.setValue("framerate", self.framerate.value())
+
+        settings.endGroup()
+
+class OutputTab(QWidget):
+    def __init__(self, options):
+        super().__init__()
+
+        layout = QVBoxLayout()
+        address_layout = QHBoxLayout()
+        layout.addLayout(address_layout)
+
+        address_layout.addWidget(QLabel("Address:"))
+        self.address_edit = QLineEdit()
+        address_layout.addWidget(self.address_edit)
+
+        layout.addWidget(QLabel("Ex. udp://<remote_address>:5000"))
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def LoadSettings(self, settings):
+
+        settings.beginGroup("Output")
+
+        self.address_edit.setText(settings.value("address", "127.0.0.1:5000"))
+
+        settings.endGroup()
+
+    def SaveSettings(self, settings):
+
+        settings.beginGroup("Output")
+
+        settings.setValue("address", self.address_edit.text())
+
+        settings.endGroup()
+
+
+class EncoderTab(QWidget):
+    def __init__(self, options):
+        super().__init__()
+
+        layout = QGridLayout()
+        layout.setColumnStretch(0, 0)
+        layout.setColumnStretch(1, 1)
+
+        layout.addWidget(QLabel("Encoder: "), 0, 0)
+        self.encoder = QComboBox()
+        self.encoder.addItems(["copy", "libx264"])
+        self.encoder.currentIndexChanged.connect(self.__encoder_changed)
+        layout.addWidget(self.encoder, 0, 1)
+
+        self.crf_label = QLabel("CRF: ")
+        layout.addWidget(self.crf_label, 1, 0)
+
+        self.crf_edit = QSpinBox()
+        self.crf_edit.setMinimum(0)
+        self.crf_edit.setMaximum(28)
+        layout.addWidget(self.crf_edit, 1, 1)
+
+        layout.setRowStretch(2, 1)
+        self.setLayout(layout)
+
+    def __encoder_changed(self, index):
+        encoder = self.encoder.itemText(index)
+
+        enable = encoder == "libx264"
+        self.crf_label.setEnabled(enable)
+        self.crf_edit.setEnabled(enable)
+
+    def LoadSettings(self, settings):
+        settings.beginGroup("Encoder")
+
+        encoder = settings.value("encoder", "libx264")
+        self.encoder.setCurrentText(encoder)
+
+        if encoder == "libx264":
+            self.crf_edit.setValue(int(settings.value("crf", "0")))
+
+        settings.endGroup()
+
+    def SaveSettings(self, settings):
+        settings.beginGroup("Encoder")
+
+        encoder = self.encoder.currentText()
+        settings.setValue("encoder", encoder)
+
+        if encoder == "libx264":
+            settings.setValue("crf", self.crf_edit.value())
+
+        settings.endGroup()
 
 class SettingsDialog(QDialog):
     def __init__(self, settings, parent):
         super().__init__(parent)
+
+        self.__settings = settings
+
         self.setWindowTitle("Settings")
 
         layout = QVBoxLayout()
-        
-        self.__settings = settings
-        
-        self.__settings.beginGroup("Output")
-        address_layout = QHBoxLayout()
-        address_layout.addWidget(QLabel("Address:"))
-        self.address_edit = QLineEdit(settings.value("address", "127.0.0.1:5000"))
-        address_layout.addWidget(self.address_edit)
-        layout.addLayout(address_layout)
-        self.__settings.endGroup()
+
+        options = PlaybackOptions()
+
+        # Setup Tabs
+        tabs = QTabWidget()
+        self.__tabs = [
+            InputTab(options),
+            EncoderTab(options),
+            OutputTab(options)
+        ]
+        display_names = ["Input", "Encoder", "Output"]
+        for tab, label in zip(self.__tabs, display_names):
+            tabs.addTab(tab, label)
+
+        for tab in self.__tabs:
+            tab.LoadSettings(self.__settings)
+
+        layout.addWidget(tabs)
 
         # Buttons: Save / Cancel
         buttons_layout = QHBoxLayout()
@@ -39,6 +231,5 @@ class SettingsDialog(QDialog):
         self.setLayout(layout)
 
     def __save_clicked(self):
-        self.__settings.beginGroup("Output")
-        self.__settings.setValue("address", self.address_edit.text())
-        self.__settings.endGroup()
+        for tab in self.__tabs:
+            tab.SaveSettings(self.__settings)

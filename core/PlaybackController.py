@@ -26,24 +26,54 @@ class PlaybackController(QObject):
         # Check process state
         if self.__process.state() != QProcess.ProcessState.NotRunning:
             return
-        
+
+        # Input options
+        self.__settings.beginGroup("Input")
+        device = self.__settings.value("device", "/dev/video0")
+        format = self.__settings.value("format", "rgb24")
+        resolution = str(self.__settings.value("width", "1920")) + "x" + \
+                     str(self.__settings.value("height", "1080"))
+        framerate = str(self.__settings.value("framerate", 60))
+        self.__settings.endGroup()
+        input_options = [
+            "-f", "v4l2",
+            "-input_format", format,
+            "-video_size", resolution,
+            "-r", framerate,
+            "-i", device
+        ]
+
+        # Encoder Options
+        encoder_options = []
+        self.__settings.beginGroup("Encoder")
+        encoder = self.__settings.value("encoder", "libx264")
+        encoder_options += ["-c:v", encoder]
+        if encoder == "libx264":
+            encoder_options += [
+                "-preset", "ultrafast",
+                "-tune", "zerolatency",
+                "-crf", str(self.__settings.value("crf", "0")),
+                "-pix_fmt", "yuv420p",
+            ]
+        self.__settings.endGroup()
+
+        # Output Options
         self.__settings.beginGroup("Output")
         output_address = self.__settings.value("address", "127.0.0.1:5000")
         self.__settings.endGroup()
-        
-        command = [
-            "ffmpeg",
-            "-f", "v4l2",
-            "-input_format", "rgb24",
-            "-video_size", "1920x1080",
-            "-i", "/dev/video0",
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-tune", "zerolatency",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-f", "mpegts", "udp://"+output_address
+
+        muxer = "mpegts"
+        if format == "mjpeg" and encoder == "copy":
+            muxer = "mjpeg"
+
+        output_options = [
+            "-f",
+            muxer,
+            output_address
         ]
+
+        command = ["ffmpeg"] + input_options + encoder_options + output_options
+        print("Running: " + " ".join(command))
         self.__process.start(command[0], command[1:])
     
     @pyqtSlot()
@@ -72,7 +102,7 @@ class PlaybackController(QObject):
     @pyqtSlot()
     def __handle_error(self):
         data = self.__process.readAllStandardError().data().decode("utf-8")
-        
+
         # Use regex to extract FPS, frame count, bitrate
         fps_match = re.search(r'fps=\s*([\d\.]+)', data)
         frame_match = re.search(r'frame=\s*(\d+)', data)
