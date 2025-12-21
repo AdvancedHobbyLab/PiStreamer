@@ -23,7 +23,27 @@ class InputTab(QWidget):
 
         layout.addWidget(QLabel("Format: "), 1, 0)
         self.format = QComboBox()
-        layout.addWidget(self.format)
+        layout.addWidget(self.format, 1, 1)
+
+        layout.addWidget(QLabel("Resolution: "), 2, 0)
+        self.resolution_width = QSpinBox()
+        self.resolution_width.setMinimum(720)
+        self.resolution_width.setMaximum(4096)
+        self.resolution_height = QSpinBox()
+        self.resolution_height.setMinimum(480)
+        self.resolution_height.setMaximum(2400)
+        resolution_layout = QHBoxLayout()
+        resolution_layout.addWidget(QLabel("Width: "), 0)
+        resolution_layout.addWidget(self.resolution_width, 1)
+        resolution_layout.addWidget(QLabel("Height: "), 0)
+        resolution_layout.addWidget(self.resolution_height, 1)
+        layout.addLayout(resolution_layout, 2, 1)
+
+        layout.addWidget(QLabel("Framerate: "), 3, 0)
+        self.framerate = QSpinBox()
+        self.framerate.setMinimum(10)
+        self.framerate.setMaximum(120)
+        layout.addWidget(self.framerate, 3, 1)
 
         self.setLayout(layout)
 
@@ -54,6 +74,15 @@ class InputTab(QWidget):
                 self.format.setCurrentIndex(row)
                 break
 
+        width = settings.value("width", 1920)
+        self.resolution_width.setValue(int(width))
+
+        height = settings.value("height", 1080)
+        self.resolution_height.setValue(int(height))
+
+        framerate = settings.value("framerate", 60)
+        self.framerate.setValue(int(framerate))
+
         settings.endGroup()
 
     def SaveSettings(self, settings):
@@ -62,6 +91,9 @@ class InputTab(QWidget):
 
         settings.setValue("device", self.device.currentData())
         settings.setValue("format", self.format.model().item(self.format.currentIndex(), 1).text())
+        settings.setValue("width", self.resolution_width.value())
+        settings.setValue("height", self.resolution_height.value())
+        settings.setValue("framerate", self.framerate.value())
 
         settings.endGroup()
 

@@ -31,11 +31,15 @@ class PlaybackController(QObject):
         self.__settings.beginGroup("Input")
         device = self.__settings.value("device", "/dev/video0")
         format = self.__settings.value("format", "rgb24")
+        resolution = str(self.__settings.value("width", "1920")) + "x" + \
+                     str(self.__settings.value("height", "1080"))
+        framerate = str(self.__settings.value("framerate", 60))
         self.__settings.endGroup()
         input_options = [
             "-f", "v4l2",
             "-input_format", format,
-            "-video_size", "1920x1080",
+            "-video_size", resolution,
+            "-r", framerate,
             "-i", device
         ]
 
