@@ -61,10 +61,15 @@ class PlaybackController(QObject):
         self.__settings.beginGroup("Output")
         output_address = self.__settings.value("address", "127.0.0.1:5000")
         self.__settings.endGroup()
+
+        muxer = "mpegts"
+        if format == "mjpeg" and encoder == "copy":
+            muxer = "mjpeg"
+
         output_options = [
             "-f",
-            "mpegts",
-            "udp://" + output_address
+            muxer,
+            output_address
         ]
 
         command = ["ffmpeg"] + input_options + encoder_options + output_options
