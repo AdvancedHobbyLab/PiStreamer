@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget, QComboBox, QSpinBox
+    QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget, QComboBox, QSpinBox,
+    QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSettings
 from core.PlaybackOptions import PlaybackOptions
@@ -45,6 +46,7 @@ class InputTab(QWidget):
         self.framerate.setMaximum(120)
         layout.addWidget(self.framerate, 3, 1)
 
+        layout.setRowStretch(4, 1)
         self.setLayout(layout)
 
     def __device_changed(self, index):
@@ -101,13 +103,18 @@ class OutputTab(QWidget):
     def __init__(self, options):
         super().__init__()
 
+        layout = QVBoxLayout()
         address_layout = QHBoxLayout()
+        layout.addLayout(address_layout)
 
         address_layout.addWidget(QLabel("Address:"))
         self.address_edit = QLineEdit()
         address_layout.addWidget(self.address_edit)
 
-        self.setLayout(address_layout)
+        layout.addWidget(QLabel("Ex. udp://<remote_address>:5000"))
+
+        layout.addStretch()
+        self.setLayout(layout)
 
     def LoadSettings(self, settings):
 
@@ -131,6 +138,8 @@ class EncoderTab(QWidget):
         super().__init__()
 
         layout = QGridLayout()
+        layout.setColumnStretch(0, 0)
+        layout.setColumnStretch(1, 1)
 
         layout.addWidget(QLabel("Encoder: "), 0, 0)
         self.encoder = QComboBox()
@@ -146,6 +155,7 @@ class EncoderTab(QWidget):
         self.crf_edit.setMaximum(28)
         layout.addWidget(self.crf_edit, 1, 1)
 
+        layout.setRowStretch(2, 1)
         self.setLayout(layout)
 
     def __encoder_changed(self, index):
