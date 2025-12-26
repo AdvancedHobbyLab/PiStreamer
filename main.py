@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
 import sys
+import signal
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QTimer
 from gui.MainWindow import MainWindow
 
 def main():
@@ -24,7 +26,21 @@ def main():
             min-height: 60px;
         }
     """)
-    
+
+    app.aboutToQuit.connect(lambda: print("Exiting..."))
+
+    def on_sigint(signum, frame):
+        print()
+        print("SIGINT received")
+        app.quit()
+
+    # Handle Keyboard Interrupts
+    signal.signal(signal.SIGINT, on_sigint)
+
+    timer = QTimer()
+    timer.start(100)
+    timer.timeout.connect(lambda: None)
+
     # Create and show the main window
     window = MainWindow()
     window.show()
