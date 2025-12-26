@@ -1,7 +1,8 @@
+from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle
+from PyQt6.QtCore import Qt, QSettings, QRect
+from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy
-from PyQt6.QtCore import QSettings
-from PyQt6.QtGui import QIcon
 from core.PlaybackController import PlaybackController
 from gui.SettingsDialog import SettingsDialog
 
@@ -29,78 +30,167 @@ class MainWindow(QMainWindow):
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+
+        # Layout
+        layout = QVBoxLayout()
+
+        layout.addWidget(self._build_video_table())
+        layout.addWidget(self._build_audio_table())
+        layout.addLayout(self._build_button_box())
         
-        # Button layout
-        button_layout = QVBoxLayout()
-        button_widget = QWidget()
-        button_widget.setMinimumWidth(300)
-        button_widget.setLayout(button_layout)
-        button_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        # Record Button
-        self.__record_button = QPushButton("Start")
-        self.__record_button.setStyleSheet("background-color: green;")
-        self.__record_button.clicked.connect(self._record_button_clicked)
-        
-        # Settings Button
-        self.__settings_button = QPushButton("Settings")
-        self.__settings_button.clicked.connect(self._settings_button_clicked)
-        
-        # Exit Button
-        self.__exit_button = QPushButton("Exit")
-        self.__exit_button.clicked.connect(self._exit_button_clicked)
-        
-        for btn in (self.__record_button, self.__settings_button, self.__exit_button):
+        # Layout
+        central_widget.setLayout(layout)
+
+    def __build_source_table(self, name, model):
+        box = QGroupBox(name)
+        box.setMinimumWidth(500)
+
+        # Layout
+        layout = QVBoxLayout()
+
+        # QTableView
+        table = QTableView()
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setEditTriggers(table.EditTrigger.NoEditTriggers)
+        table.setModel(model)
+
+        table.setSelectionBehavior(table.SelectionBehavior.SelectRows)
+        table.setSelectionMode(table.SelectionMode.SingleSelection)
+        table.setAlternatingRowColors(True)
+        layout.addWidget(table)
+
+        # Set Header Column Behavior
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        if model.columnCount() == 3:
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(2, 200)
+        else:
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(2, 120)
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(3, 200)
+
+        # Vertical Header
+        table.verticalHeader().setVisible(False)
+
+        # Button Box
+        button_layout = QHBoxLayout()
+        add_button = QPushButton("Add")
+        add_button.setToolTip("Add")
+
+        remove_button = QPushButton("Remove")
+        remove_button.setToolTip("Remove")
+        remove_button.setEnabled(False)
+
+        edit_button = QPushButton("Edit")
+        edit_button.setToolTip("Edit")
+        edit_button.setEnabled(False)
+
+        for btn in (add_button, remove_button, edit_button):
             btn.setStyleSheet("""
                 font-size: 18px;
                 padding: 10px;
             """)
-            btn.setSizePolicy(
-                QSizePolicy.Policy.Expanding,   # respects minimum size
-                QSizePolicy.Policy.Fixed
-            )
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             button_layout.addWidget(btn)
-            
-        self.__record_button.setStyleSheet("background-color: green;")
-        
-        # Info Area
-        info = QGroupBox("Info")
-        info.setFixedWidth(200)
-        info_layout = QGridLayout()
-        info_layout.setColumnStretch(0, 0)
-        info_layout.setColumnStretch(1, 1)
-        vbox = QVBoxLayout()
-        vbox.addLayout(info_layout)
-        vbox.addStretch(1)
-        info.setLayout(vbox)
-        
-        info_layout.addWidget(QLabel("Frame: "), 0, 0)
-        info_layout.addWidget(QLabel("FPS: "), 1, 0)
-        info_layout.addWidget(QLabel("BitRate: "), 2, 0)
-        
-        self.__frame_label = QLabel("0")
-        info_layout.addWidget(self.__frame_label, 0, 1)
-        self._playback.frame.connect(lambda t: self.__frame_label.setText(str(t)))
-        
-        self.__fps_label = QLabel("0.0")
-        info_layout.addWidget(self.__fps_label, 1, 1)
-        self._playback.fps.connect(lambda t: self.__fps_label.setText(str(t)))
-        
-        self.__bitrate_label = QLabel("0.0")
-        info_layout.addWidget(self.__bitrate_label, 2, 1)
-        self._playback.bitrate.connect(lambda t: self.__bitrate_label.setText(str(t)+"kbits/s"))
-        
+
+        # Finalize
+        layout.addLayout(button_layout)
+        box.setLayout(layout)
+
+        return box, table, add_button, remove_button, edit_button
+
+    def _build_video_table(self):
+        # Build Model
+        eye_icon = QIcon.fromTheme("view-visible")
+
+        self.video_model = QStandardItemModel()
+        self.video_model.setHorizontalHeaderLabels(["", "Name", "Frame Rate", "Bit Rate"])
+        self.video_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
+
+        # Populate Model
+        check_box = QStandardItem()
+        check_box.setEditable(True)
+        check_box.setCheckable(True)
+        check_box.setCheckState(Qt.CheckState.Checked)
+        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.video_model.appendRow([
+            check_box,
+            QStandardItem("HDMI"),
+            QStandardItem("60.0 FPS"),
+            QStandardItem("18345.12 kbps"),
+        ])
+
+        # Build Table
+        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Video Sources", self.video_model)
+
+        self.video_table = table
+        self.video_table.selectionModel().selectionChanged.connect(self._video_selection_changed)
+        self.video_add = add_button
+        self.video_remove = remove_button
+        self.video_edit = edit_button
+
+        return layout
+
+    def _build_audio_table(self):
+        # Build Model
+        eye_icon = QIcon.fromTheme("view-visible")
+
+        self.audio_model = QStandardItemModel()
+        self.audio_model.setHorizontalHeaderLabels(["", "Name", "Bit Rate"])
+        self.audio_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
+
+        # Populate Model
+        check_box = QStandardItem()
+        check_box.setEditable(True)
+        check_box.setCheckable(True)
+        check_box.setCheckState(Qt.CheckState.Checked)
+        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.audio_model.appendRow([
+            check_box,
+            QStandardItem("HDMI"),
+            QStandardItem("45.12 kbps"),
+        ])
+
+        # Build Table
+        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Audio Sources", self.audio_model)
+
+        self.audio_table = table
+        self.audio_table.selectionModel().selectionChanged.connect(self._audio_selection_changed)
+        self.audio_add = add_button
+        self.audio_remove = remove_button
+        self.audio_edit = edit_button
+
+        return layout
+
+    def _build_button_box(self):
         layout = QHBoxLayout()
-        layout.addWidget(info)
-        layout.addWidget(button_widget)
-        layout.setStretch(0, 0); # Prevent info area from stretching
-        layout.setStretch(1, 1); # Allow the buttons to stretch
-        
-        # Layout
-        central_widget.setLayout(layout)
-        
-        
-    def _record_button_clicked(self, clicked):
+
+        # Start Button
+        self.__start_button = QPushButton("Start")
+        self.__start_button.setStyleSheet("background-color: green;")
+        self.__start_button.clicked.connect(self._start_button_clicked)
+        layout.addWidget(self.__start_button)
+
+        # Exit Button
+        self.__exit_button = QPushButton("Exit")
+        self.__exit_button.clicked.connect(self._exit_button_clicked)
+        layout.addWidget(self.__exit_button)
+
+        return layout
+
+    def _video_selection_changed(self, selected, deselected):
+        self.video_edit.setEnabled(True)
+        self.video_remove.setEnabled(True)
+
+    def _audio_selection_changed(self, selected, deselected):
+        self.audio_edit.setEnabled(True)
+        self.audio_remove.setEnabled(True)
+
+    def _start_button_clicked(self, clicked):
         if self._playback.state():
             self._playback.stop_playback()
         else:
@@ -115,8 +205,8 @@ class MainWindow(QMainWindow):
     
     def __playback_state_change(self, state):
         if state:
-            self.__record_button.setText("Stop")
-            self.__record_button.setStyleSheet("background-color: red;")
+            self.__start_button.setText("Stop")
+            self.__start_button.setStyleSheet("background-color: red;")
         else:
-            self.__record_button.setText("Start")
-            self.__record_button.setStyleSheet("background-color: green;")
+            self.__start_button.setText("Start")
+            self.__start_button.setStyleSheet("background-color: green;")
