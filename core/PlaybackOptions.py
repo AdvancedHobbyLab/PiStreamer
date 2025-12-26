@@ -6,8 +6,6 @@ import subprocess
 import glob
 import re
 
-from click import command
-
 
 class PlaybackOptions():
     def __init__(self):
