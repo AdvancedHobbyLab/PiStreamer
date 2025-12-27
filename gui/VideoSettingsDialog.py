@@ -55,11 +55,8 @@ class InputTab(QWidget):
         self.format.setModel(model)
         self.format.setModelColumn(2)
 
-    def LoadSettings(self, settings):
-
-        settings.beginGroup("Input")
-
-        device = settings.value("device", "/dev/video0")
+    def LoadSettings(self, config):
+        device = config.get("device", "/dev/video0")
         model = self.device.model()
         for row in range(model.rowCount()):
             item = model.item(row)
@@ -68,7 +65,7 @@ class InputTab(QWidget):
                 self.__device_changed(row)
                 break
 
-        format = settings.value("format", "rgb24")
+        format = config.get("format", "rgb24")
         model = self.format.model()
         for row in range(model.rowCount()):
             item = model.item(row, 1)
@@ -76,28 +73,23 @@ class InputTab(QWidget):
                 self.format.setCurrentIndex(row)
                 break
 
-        width = settings.value("width", 1920)
+        width = config.get("width", 1920)
         self.resolution_width.setValue(int(width))
 
-        height = settings.value("height", 1080)
+        height = config.get("height", 1080)
         self.resolution_height.setValue(int(height))
 
-        framerate = settings.value("framerate", 60)
+        framerate = config.get("framerate", 60)
         self.framerate.setValue(int(framerate))
 
-        settings.endGroup()
-
-    def SaveSettings(self, settings):
-
-        settings.beginGroup("Input")
-
-        settings.setValue("device", self.device.currentData())
-        settings.setValue("format", self.format.model().item(self.format.currentIndex(), 1).text())
-        settings.setValue("width", self.resolution_width.value())
-        settings.setValue("height", self.resolution_height.value())
-        settings.setValue("framerate", self.framerate.value())
-
-        settings.endGroup()
+    def GetSettings(self):
+        return {
+            "device": self.device.currentData(),
+            "format": self.format.model().item(self.format.currentIndex(), 1).text(),
+            "width": self.resolution_width.value(),
+            "height": self.resolution_height.value(),
+            "framerate": self.framerate.value()
+        }
 
 class OutputTab(QWidget):
     def __init__(self, options):
@@ -116,21 +108,11 @@ class OutputTab(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-    def LoadSettings(self, settings):
+    def LoadSettings(self, config):
+        self.address_edit.setText(config.get("address", "127.0.0.1:5000"))
 
-        settings.beginGroup("Output")
-
-        self.address_edit.setText(settings.value("address", "127.0.0.1:5000"))
-
-        settings.endGroup()
-
-    def SaveSettings(self, settings):
-
-        settings.beginGroup("Output")
-
-        settings.setValue("address", self.address_edit.text())
-
-        settings.endGroup()
+    def GetSettings(self):
+        return {"address": self.address_edit.text()}
 
 
 class EncoderTab(QWidget):
@@ -165,39 +147,43 @@ class EncoderTab(QWidget):
         self.crf_label.setEnabled(enable)
         self.crf_edit.setEnabled(enable)
 
-    def LoadSettings(self, settings):
-        settings.beginGroup("Encoder")
-
-        encoder = settings.value("encoder", "libx264")
+    def LoadSettings(self, config):
+        encoder = config.get("encoder", "libx264")
         self.encoder.setCurrentText(encoder)
 
         if encoder == "libx264":
-            self.crf_edit.setValue(int(settings.value("crf", "0")))
+            self.crf_edit.setValue(int(config.get("crf", "0")))
 
-        settings.endGroup()
-
-    def SaveSettings(self, settings):
-        settings.beginGroup("Encoder")
+    def GetSettings(self):
+        config = {}
 
         encoder = self.encoder.currentText()
-        settings.setValue("encoder", encoder)
+        config["encoder"] = encoder
 
         if encoder == "libx264":
-            settings.setValue("crf", self.crf_edit.value())
+            config["crf"] = self.crf_edit.value()
 
-        settings.endGroup()
+        return config
 
-class SettingsDialog(QDialog):
-    def __init__(self, settings, parent):
+class VideoSettingsDialog(QDialog):
+    def __init__(self, settings, parent, index):
         super().__init__(parent)
 
         self.__settings = settings
+        self.__index = index
 
-        self.setWindowTitle("Settings")
+        self.setWindowTitle("Video Settings")
 
         layout = QVBoxLayout()
 
         options = PlaybackOptions()
+
+        # Add Name
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Name:"))
+        self.name_edit = QLineEdit("Default")
+        name_layout.addWidget(self.name_edit)
+        layout.addLayout(name_layout)
 
         # Setup Tabs
         tabs = QTabWidget()
@@ -210,8 +196,13 @@ class SettingsDialog(QDialog):
         for tab, label in zip(self.__tabs, display_names):
             tabs.addTab(tab, label)
 
+        config = {}
+        if index >= 0:
+            config = self.__settings.get_video_config(self.__index)
+
+        self.name_edit.setText(config.get("name", "Default"))
         for tab in self.__tabs:
-            tab.LoadSettings(self.__settings)
+            tab.LoadSettings(config)
 
         layout.addWidget(tabs)
 
@@ -231,5 +222,12 @@ class SettingsDialog(QDialog):
         self.setLayout(layout)
 
     def __save_clicked(self):
+        config = {"name": self.name_edit.text()}
         for tab in self.__tabs:
-            tab.SaveSettings(self.__settings)
+            config.update(tab.GetSettings())
+
+        print("Save: ", config)
+        if self.__index >= 0:
+            self.__settings.update_video_config(self.__index, config)
+        else:
+            self.__settings.add_video_config(config)

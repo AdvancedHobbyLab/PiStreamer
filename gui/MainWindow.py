@@ -3,18 +3,22 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGri
 from PyQt6.QtCore import Qt, QSettings, QRect
 from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
+from core.SettingsManager import SettingsManager
 from core.PlaybackController import PlaybackController
-from gui.SettingsDialog import SettingsDialog
+from gui.VideoSettingsDialog import VideoSettingsDialog
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
-        self._settings = QSettings("AHL", "PiStreamer")
-        
+
+        self._settings = SettingsManager()
+        self._settings.video_config_added.connect(self._video_config_added)
+        self._settings.video_config_changed.connect(self._video_config_changed)
+        self._settings.video_config_removed.connect(self._video_config_removed)
+
         self._playback = PlaybackController(self._settings)
         self._playback.state_change.connect(self.__playback_state_change)
-        
+
         self.setWindowTitle("Pi Streamer")
         
         # Set Window Icon
@@ -40,6 +44,11 @@ class MainWindow(QMainWindow):
         
         # Layout
         central_widget.setLayout(layout)
+
+        # Initialize
+        for i in range(self._settings.num_video_configs()):
+            config = self._settings.get_video_config(i)
+            self._video_config_added(i, config)
 
     def __build_source_table(self, name, model):
         box = QGroupBox(name)
@@ -111,27 +120,17 @@ class MainWindow(QMainWindow):
         self.video_model.setHorizontalHeaderLabels(["", "Name", "Frame Rate", "Bit Rate"])
         self.video_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
 
-        # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.video_model.appendRow([
-            check_box,
-            QStandardItem("HDMI"),
-            QStandardItem("60.0 FPS"),
-            QStandardItem("18345.12 kbps"),
-        ])
-
         # Build Table
         layout, table, add_button, remove_button, edit_button = self.__build_source_table("Video Sources", self.video_model)
 
         self.video_table = table
         self.video_table.selectionModel().selectionChanged.connect(self._video_selection_changed)
         self.video_add = add_button
+        self.video_add.clicked.connect(self._add_video_button_clicked)
         self.video_remove = remove_button
+        self.video_remove.clicked.connect(self._remove_video_button_clicked)
         self.video_edit = edit_button
+        self.video_edit.clicked.connect(self._edit_video_button_clicked)
 
         return layout
 
@@ -195,9 +194,44 @@ class MainWindow(QMainWindow):
             self._playback.stop_playback()
         else:
             self._playback.start_playback()
-    
+
+    def _video_config_added(self, index, video_config):
+        print(video_config)
+        # Populate Model
+        check_box = QStandardItem()
+        check_box.setEditable(True)
+        check_box.setCheckable(True)
+        check_box.setCheckState(Qt.CheckState.Checked)
+        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.video_model.appendRow([
+            check_box,
+            QStandardItem(video_config.get("name")),
+            QStandardItem("60.0 FPS"),
+            QStandardItem("18345.12 kbps"),
+        ])
+
+    def _video_config_changed(self, index, video_config):
+        item = self.video_model.item(index, 1)
+        item.setText(video_config.get("name"))
+
+    def _video_config_removed(self, index):
+        self.video_model.removeRow(index)
+
+    def _add_video_button_clicked(self, clicked):
+        dialog = VideoSettingsDialog(self._settings, self, -1)
+        dialog.exec()
+
+    def _remove_video_button_clicked(self, clicked):
+        index = self.video_table.selectionModel().currentIndex().row()
+        self._settings.remove_video_config(index)
+
+    def _edit_video_button_clicked(self, clicked):
+        index = self.video_table.selectionModel().currentIndex().row()
+        dialog = VideoSettingsDialog(self._settings, self, index)
+        dialog.exec()
+
     def _settings_button_clicked(self, clicked):
-        dialog = SettingsDialog(self._settings, self)
+        dialog = VideoSettingsDialog(self._settings, self)
         dialog.exec()
     
     def _exit_button_clicked(self, clicked):
