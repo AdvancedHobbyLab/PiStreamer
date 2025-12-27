@@ -3,7 +3,10 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QCheckBox, QPushButton, QTabWidget, QComboBox, QSpinBox,
     QSizePolicy
 )
+from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt, QSettings
+
+from core.PlaybackOptions import PlaybackOptions
 
 class AudioSettingsDialog(QDialog):
     def __init__(self, settings, parent, index):
@@ -12,7 +15,10 @@ class AudioSettingsDialog(QDialog):
         self.__settings = settings
         self.__index = index
 
-        self.setWindowTitle("Video Settings")
+        self.setWindowTitle("Audio Settings")
+
+        self.options = PlaybackOptions()
+
 
         layout = QVBoxLayout()
 
@@ -26,17 +32,26 @@ class AudioSettingsDialog(QDialog):
         self.name_edit = QLineEdit(config.get("name", "Default"))
         grid_layout.addWidget(self.name_edit, 0, 1)
 
+        devices = self.options.GetAudioDevices()
         grid_layout.addWidget(QLabel("Device:"), 1, 0)
-        self.device_edit = QLineEdit(config.get("device", "hw:2,0"))
-        grid_layout.addWidget(self.device_edit, 1, 1)
+        self.device = QComboBox()
+        self.device.setModel(devices)
+        self.device.currentIndexChanged.connect(self.__device_changed)
+        grid_layout.addWidget(self.device, 1, 1)
 
-        grid_layout.addWidget(QLabel("Format:"), 2, 0)
-        self.format_edit = QLineEdit(config.get("format", "S16LE"))
-        grid_layout.addWidget(self.format_edit, 2, 1)
+        grid_layout.addWidget(QLabel("Format:"), 2, 0) #config.get("format", "S16LE")
+        self.format = QComboBox()
+        grid_layout.addWidget(self.format, 2, 1)
+
+        model = QStandardItemModel()
+        item = QStandardItem("opus")
+        item.setData("opus", Qt.ItemDataRole.UserRole)
+        model.appendRow(item)
 
         grid_layout.addWidget(QLabel("Encoder:"), 3, 0)
-        self.encoder_edit = QLineEdit(config.get("encoder", "opus"))
-        grid_layout.addWidget(self.encoder_edit, 3, 1)
+        self.encoder = QComboBox()
+        self.encoder.setModel(model)
+        grid_layout.addWidget(self.encoder, 3, 1)
 
         grid_layout.addWidget(QLabel("Address:"), 4, 0)
         self.address_edit = QLineEdit(config.get("address", "upd://127.0.0.1:5000"))
@@ -59,11 +74,32 @@ class AudioSettingsDialog(QDialog):
 
         self.setLayout(layout)
 
+        # Initialize
+        dev_name = config.get("device", "hw:2,0")
+        for row in range(devices.rowCount()):
+            item = devices.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == dev_name:
+                self.device.setCurrentIndex(row)
+                self.__device_changed(row)
+                break
+
+        format = config.get("format", "S16LE")
+        format_model = self.format.model()
+        for row in range(format_model.rowCount()):
+            item = format_model.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == format:
+                self.format.setCurrentIndex(row)
+                break
+
+    def __device_changed(self, row):
+        formats = self.options.GetAudioFormats(self.device.currentData())
+        self.format.setModel(formats)
+
     def __save_clicked(self):
         config = {"name": self.name_edit.text()}
-        config["device"] = self.device_edit.text()
-        config["format"] = self.format_edit.text()
-        config["encoder"] = self.encoder_edit.text()
+        config["device"] = self.device.currentData()
+        config["format"] = self.format.currentData()
+        config["encoder"] = self.encoder.currentData()
         config["address"] = self.address_edit.text()
 
         if self.__index >= 0:

@@ -6,6 +6,11 @@ import subprocess
 import glob
 import re
 
+import gi
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst
+
+Gst.init(None)
 
 class PlaybackOptions():
     def __init__(self):
@@ -76,9 +81,72 @@ class PlaybackOptions():
                     ]
                     model.appendRow(items)
 
-
-
         except subprocess.TimeoutExpired:
             print("The subprocess timed out!")
+
+        return model
+
+    def GetAudioDevices(self):
+        model = QStandardItemModel()
+        devices = []
+
+        try:
+            result = subprocess.run(
+                ["arecord", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+
+            card_re = re.compile(
+                r"card\s+(?P<card>\d+):\s+(?P<card_name>[^\s]+)\s+\[(?P<card_hr>[^\]]+)\],\s+device\s+(?P<device>\d+):"
+            )
+
+            device_hr_re = re.compile(r"\[(?P<device_hr>[^\]]+)\]")
+
+            lines = result.stdout.splitlines()
+            i = 0
+
+            while i < len(lines):
+                line = lines[i]
+                card_match = card_re.search(line)
+                if card_match:
+                    card = card_match.group("card")
+                    device = card_match.group("device")
+                    card_name = card_match.group("card_name")
+
+                    # Look ahead for the first [human readable device name]
+                    device_hr = None
+                    for j in range(i + 1, min(i + 4, len(lines))):
+                        m = device_hr_re.search(lines[j])
+                        if m:
+                            device_hr = m.group("device_hr")
+                            break
+
+                    devices.append({
+                        "hw": f"hw:{card},{device}",
+                        "card_index": int(card),
+                        "device_index": int(device),
+                        "card_name": card_name,
+                        "device_name": device_hr,
+                    })
+
+                i += 1
+        except subprocess.TimeoutExpired:
+            print("The subprocess timed out!")
+
+        for device in devices:
+            item = QStandardItem(str(device["card_name"]) + ", " + str(device["device_name"]) + " ("+str(device["hw"])+")")
+            item.setData(device["hw"], Qt.ItemDataRole.UserRole)  # store value
+            model.appendRow(item)
+
+        return model
+
+    def GetAudioFormats(self, device):
+        model = QStandardItemModel()
+
+        item = QStandardItem("S16LE")
+        item.setData("S16LE", Qt.ItemDataRole.UserRole)
+        model.appendRow(item)
 
         return model
