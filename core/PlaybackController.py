@@ -3,22 +3,33 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QProcess, QSettings
 import re
 
 class VideoPlaybackSource(QObject):
+
+    # Signals
+    state_change = pyqtSignal(bool)
+    frame = pyqtSignal(int)
+    fps = pyqtSignal(float)
+    bitrate = pyqtSignal(float)
+
     def __init__(self, data):
         super().__init__()
 
-        self.process = QProcess(self)
-        self.process.readyReadStandardOutput.connect(self.__handle_output)
-        self.process.readyReadStandardError.connect(self.__handle_error)
-        self.process.stateChanged.connect(self.__state_changed)
+        self.__process = QProcess(self)
+        self.__process.readyReadStandardOutput.connect(self.__handle_output)
+        self.__process.readyReadStandardError.connect(self.__handle_error)
+        self.__process.stateChanged.connect(self.__state_changed)
+        self.__process.finished.connect(self.__clean_up)
 
         self.set_config(data)
 
     def set_config(self, data):
         self.data = data
 
+    def state(self):
+        return self.__process.state()
+
     def start_playback(self):
         # Check process state
-        if self.process.state() != QProcess.ProcessState.NotRunning:
+        if self.__process.state() != QProcess.ProcessState.NotRunning:
             return
 
         # Input options
@@ -62,7 +73,7 @@ class VideoPlaybackSource(QObject):
 
         command = ["ffmpeg"] + input_options + encoder_options + output_options
         print("Running: " + " ".join(command))
-        self.process.start(command[0], command[1:])
+        self.__process.start(command[0], command[1:])
 
     def stop_playback(self):
         # Check process state
@@ -80,11 +91,11 @@ class VideoPlaybackSource(QObject):
 
     @pyqtSlot()
     def __handle_output(self):
-        data = self.process.readAllStandardOutput().data().decode("utf-8")
+        data = self.__process.readAllStandardOutput().data().decode("utf-8")
 
     @pyqtSlot()
     def __handle_error(self):
-        data = self.process.readAllStandardError().data().decode("utf-8")
+        data = self.__process.readAllStandardError().data().decode("utf-8")
 
         # Use regex to extract FPS, frame count, bitrate
         fps_match = re.search(r'fps=\s*([\d\.]+)', data)
@@ -99,18 +110,24 @@ class VideoPlaybackSource(QObject):
             clean = re.sub(r"[^0-9.]+$", "", bitrate_match.group(1))
             self.bitrate.emit(float(clean))
 
+    def __clean_up(self):
+        self.frame.emit(0)
+        self.fps.emit(0)
+        self.bitrate.emit(0)
+
 class PlaybackController(QObject):
     
     # Signals
     state_change = pyqtSignal(bool)
-    frame = pyqtSignal(int)
-    fps = pyqtSignal(float)
     bitrate = pyqtSignal(float)
     
     def __init__(self, settings):
         super().__init__()
         
         self.__settings = settings
+        self.__settings.video_config_added.connect(self.__video_config_added)
+        self.__settings.video_config_changed.connect(self.__video_config_changed)
+        self.__settings.video_config_removed.connect(self.__video_config_removed)
         
         self.__video_sources = []
         self.__audio_sources = []
@@ -120,15 +137,18 @@ class PlaybackController(QObject):
         # Add Video Sources
         for i in range(self.__settings.num_video_configs()):
             config = self.__settings.get_video_config(i)
-            self.__video_sources.append(config)
+            self.__video_config_added(i, config)
 
-        
+    def num_video_sources(self):
+        return len(self.__video_sources)
+
+    def video_source(self, index):
+        return self.__video_sources[index]
         
     @pyqtSlot()
     def start_playback(self):
         for source in self.__video_sources:
             source.start_playback()
-
     
     @pyqtSlot()
     def stop_playback(self):
@@ -137,13 +157,20 @@ class PlaybackController(QObject):
         
     # Return True if running else False
     def state(self):
-        return self.__process.state() != QProcess.ProcessState.NotRunning
+        return self.__state
         
     def __state_changed(self, new_state):
-        if new_state == QProcess.ProcessState.NotRunning:
-            self.state_change.emit(False)
-        else:
-            self.state_change.emit(True)
+        # Get State
+        final_state = False
+        for source in self.__video_sources:
+            state = source.state()
+            if state != QProcess.ProcessState.NotRunning:
+                final_state = True
+
+        # Update State
+        if final_state != self.__state:
+            self.__state = final_state
+            self.state_change.emit(self.__state)
         
     @pyqtSlot()
     def __handle_output(self):
@@ -165,5 +192,16 @@ class PlaybackController(QObject):
         if bitrate_match:
             clean = re.sub(r"[^0-9.]+$", "", bitrate_match.group(1))
             self.bitrate.emit(float(clean))
-        
+
+    def __video_config_added(self, index, config):
+        source = VideoPlaybackSource(config)
+        self.__video_sources.append(source)
+        source.state_change.connect(self.__state_changed)
+
+    def __video_config_changed(self, index, config):
+        source = VideoPlaybackSource(config)
+        source.set_config(config)
+
+    def __video_config_removed(self, index):
+        self.__video_sources.pop(index)
         

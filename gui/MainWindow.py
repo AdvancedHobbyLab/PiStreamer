@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle
-from PyQt6.QtCore import Qt, QSettings, QRect
+from PyQt6.QtCore import Qt, QSettings, QRect, QTimer
 from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
 from core.SettingsManager import SettingsManager
@@ -206,9 +206,21 @@ class MainWindow(QMainWindow):
         self.video_model.appendRow([
             check_box,
             QStandardItem(video_config.get("name")),
-            QStandardItem("60.0 FPS"),
-            QStandardItem("18345.12 kbps"),
+            QStandardItem("0.0 FPS"),
+            QStandardItem("0.00 kb/s"),
         ])
+
+        QTimer.singleShot(0, lambda: self.__video_config_added_playback(index))
+
+        #source = self._playback.video_source(index)
+        #source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
+        #source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
+
+    def __video_config_added_playback(self, index):
+        print("__video_config_added_playback: ", index, " ", self._playback.num_video_sources())
+        source = self._playback.video_source(index)
+        source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
+        source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
 
     def _video_config_changed(self, index, video_config):
         item = self.video_model.item(index, 1)
@@ -229,6 +241,14 @@ class MainWindow(QMainWindow):
         index = self.video_table.selectionModel().currentIndex().row()
         dialog = VideoSettingsDialog(self._settings, self, index)
         dialog.exec()
+
+    def _fps_updated(self, index, fps):
+        item = self.video_model.item(index, 2)
+        item.setText(str(fps)+" FPS")
+
+    def _video_bitrate_updated(self, index, bitrate):
+        item = self.video_model.item(index, 3)
+        item.setText(str(bitrate)+" kb/s")
 
     def _settings_button_clicked(self, clicked):
         dialog = VideoSettingsDialog(self._settings, self)
