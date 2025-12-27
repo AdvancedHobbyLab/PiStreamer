@@ -1,6 +1,13 @@
 
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QProcess, QSettings
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QProcess, QSettings, QTimer
 import re
+from urllib.parse import urlparse
+
+import gi, time
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
+
+Gst.init(None)
 
 class VideoPlaybackSource(QObject):
 
@@ -28,6 +35,7 @@ class VideoPlaybackSource(QObject):
         return self.__process.state()
 
     def start_playback(self):
+        print("Starting Source:", self.data.get("name", "Unknown"))
         # Check process state
         if self.__process.state() != QProcess.ProcessState.NotRunning:
             return
@@ -124,17 +132,81 @@ class AudioPlaybackSource(QObject):
     def __init__(self, data):
         super().__init__()
 
+        self.total_bytes = 0
+        self.last_time = time.time()
+
+        self.pipeline = None
+        self.timer = QTimer()
+
+        self.set_config(data)
+
+
     def set_config(self, data):
         self.data = data
+
+        self.pipeline = Gst.parse_launch(self.__build_pipeline_string())
+
+        self.identity = self.pipeline.get_by_name("probe")
+        self.identity.connect("handoff", self.__on_handoff)
+        self.bus = self.pipeline.get_bus()
+
+        # Poll GStreamer bus via Qt
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.__poll_bus)
+        self.timer.start(50)
 
     def state(self):
         return self.__process.state()
 
     def start_playback(self):
-        pass
+        print("Starting Source:", self.data.get("name", "Unknown"))
+        self.pipeline.set_state(Gst.State.PLAYING)
+        print("Running: gst-launch-1.0 -v", self.__build_pipeline_string())
 
     def stop_playback(self):
-        pass
+        self.pipeline.set_state(Gst.State.NULL)
+
+        self.bitrate.emit(0)
+
+    def __build_pipeline_string(self):
+        device = self.data["device"]
+        format = self.data["format"]
+        encoder = self.data["encoder"]  # must be opus
+
+        parsed = urlparse(self.data["address"])
+        protocal = parsed.scheme  # Must be UDP
+        host = parsed.hostname
+        port = parsed.port
+
+        out = ( "alsasrc device=" + str(device) + " "
+                "! audio/x-raw,format=" + str(format) + ",rate=48000,channels=2 "
+                "! opusenc bitrate=64000 "
+                "! identity name=probe signal-handoffs=true "
+                "! mpegtsmux "
+                "! udpsink host=" + str(host) + " port=" + str(port))
+
+        return out
+
+    def __on_handoff(self, identity, buffer, pad=None):
+        self.total_bytes += buffer.get_size()
+        now = time.time()
+        if now - self.last_time >= 1.0:
+            kbps = (self.total_bytes * 8) / 1000
+            self.bitrate.emit(kbps)
+            self.total_bytes = 0
+            self.last_time = now
+
+    def __poll_bus(self):
+        msg = self.bus.pop()
+        if not msg:
+            return
+
+        if msg.type == Gst.MessageType.ERROR:
+            err, dbg = msg.parse_error()
+            print("GStreamer error:", err, dbg)
+
+        elif msg.type == Gst.MessageType.EOS:
+            print("End of stream")
 
 class PlaybackController(QObject):
     
@@ -182,12 +254,17 @@ class PlaybackController(QObject):
         
     @pyqtSlot()
     def start_playback(self):
-        for source in self.__video_sources:
+        print()
+        print("Start Playback...")
+        self.state_change.emit(True)
+        for source in self.__video_sources + self.__audio_sources:
+            print()
             source.start_playback()
     
     @pyqtSlot()
     def stop_playback(self):
-        for source in self.__video_sources:
+        print("Stop Playback...")
+        for source in self.__video_sources + self.__audio_sources:
             source.stop_playback()
         
     # Return True if running else False

@@ -284,11 +284,11 @@ class MainWindow(QMainWindow):
 
     def _video_bitrate_updated(self, index, bitrate):
         item = self.video_model.item(index, 3)
-        item.setText(str(bitrate)+" kb/s")
+        item.setText(f"{float(bitrate):.1f} kb/s")
 
     def _audio_bitrate_updated(self, index, bitrate):
-        item = self.audio_model.item(index, 3)
-        item.setText(str(bitrate)+" kb/s")
+        item = self.audio_model.item(index, 2)
+        item.setText(f"{float(bitrate):.2f} kb/s")
 
     def _settings_button_clicked(self, clicked):
         dialog = VideoSettingsDialog(self._settings, self)
