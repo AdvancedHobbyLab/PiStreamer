@@ -115,6 +115,27 @@ class VideoPlaybackSource(QObject):
         self.fps.emit(0)
         self.bitrate.emit(0)
 
+class AudioPlaybackSource(QObject):
+
+    # Signals
+    state_change = pyqtSignal(bool)
+    bitrate = pyqtSignal(float)
+
+    def __init__(self, data):
+        super().__init__()
+
+    def set_config(self, data):
+        self.data = data
+
+    def state(self):
+        return self.__process.state()
+
+    def start_playback(self):
+        pass
+
+    def stop_playback(self):
+        pass
+
 class PlaybackController(QObject):
     
     # Signals
@@ -128,6 +149,9 @@ class PlaybackController(QObject):
         self.__settings.video_config_added.connect(self.__video_config_added)
         self.__settings.video_config_changed.connect(self.__video_config_changed)
         self.__settings.video_config_removed.connect(self.__video_config_removed)
+        self.__settings.audio_config_added.connect(self.__audio_config_added)
+        self.__settings.audio_config_changed.connect(self.__audio_config_changed)
+        self.__settings.audio_config_removed.connect(self.__audio_config_removed)
         
         self.__video_sources = []
         self.__audio_sources = []
@@ -139,11 +163,22 @@ class PlaybackController(QObject):
             config = self.__settings.get_video_config(i)
             self.__video_config_added(i, config)
 
+        # Add Audio Sources
+        for i in range(self.__settings.num_audio_configs()):
+            config = self.__settings.get_audio_config(i)
+            self.__audio_config_added(i, config)
+
     def num_video_sources(self):
         return len(self.__video_sources)
 
     def video_source(self, index):
         return self.__video_sources[index]
+
+    def num_audio_sources(self):
+        return len(self.__audio_sources)
+
+    def audio_source(self, index):
+        return self.__audio_sources[index]
         
     @pyqtSlot()
     def start_playback(self):
@@ -166,6 +201,8 @@ class PlaybackController(QObject):
             state = source.state()
             if state != QProcess.ProcessState.NotRunning:
                 final_state = True
+
+        # TODO - add audio sources
 
         # Update State
         if final_state != self.__state:
@@ -199,9 +236,21 @@ class PlaybackController(QObject):
         source.state_change.connect(self.__state_changed)
 
     def __video_config_changed(self, index, config):
-        source = VideoPlaybackSource(config)
+        source = self.__video_sources[index]
         source.set_config(config)
 
     def __video_config_removed(self, index):
         self.__video_sources.pop(index)
+
+    def __audio_config_added(self, index, config):
+        source = AudioPlaybackSource(config)
+        self.__audio_sources.append(source)
+        source.state_change.connect(self.__state_changed)
+
+    def __audio_config_changed(self, index, config):
+        source = self.__audio_sources[index]
+        source.set_config(config)
+
+    def __audio_config_removed(self, index):
+        self.__audio_sources.pop(index)
         

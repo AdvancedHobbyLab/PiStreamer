@@ -6,6 +6,7 @@ from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 from core.SettingsManager import SettingsManager
 from core.PlaybackController import PlaybackController
 from gui.VideoSettingsDialog import VideoSettingsDialog
+from gui.AudioSettingsDialog import AudioSettingsDialog
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -15,6 +16,9 @@ class MainWindow(QMainWindow):
         self._settings.video_config_added.connect(self._video_config_added)
         self._settings.video_config_changed.connect(self._video_config_changed)
         self._settings.video_config_removed.connect(self._video_config_removed)
+        self._settings.audio_config_added.connect(self._audio_config_added)
+        self._settings.audio_config_changed.connect(self._audio_config_changed)
+        self._settings.audio_config_removed.connect(self._audio_config_removed)
 
         self._playback = PlaybackController(self._settings)
         self._playback.state_change.connect(self.__playback_state_change)
@@ -49,6 +53,10 @@ class MainWindow(QMainWindow):
         for i in range(self._settings.num_video_configs()):
             config = self._settings.get_video_config(i)
             self._video_config_added(i, config)
+
+        for i in range(self._settings.num_audio_configs()):
+            config = self._settings.get_audio_config(i)
+            self._audio_config_added(i, config)
 
     def __build_source_table(self, name, model):
         box = QGroupBox(name)
@@ -142,26 +150,17 @@ class MainWindow(QMainWindow):
         self.audio_model.setHorizontalHeaderLabels(["", "Name", "Bit Rate"])
         self.audio_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
 
-        # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.audio_model.appendRow([
-            check_box,
-            QStandardItem("HDMI"),
-            QStandardItem("45.12 kbps"),
-        ])
-
         # Build Table
         layout, table, add_button, remove_button, edit_button = self.__build_source_table("Audio Sources", self.audio_model)
 
         self.audio_table = table
         self.audio_table.selectionModel().selectionChanged.connect(self._audio_selection_changed)
         self.audio_add = add_button
+        self.audio_add.clicked.connect(self._add_audio_button_clicked)
         self.audio_remove = remove_button
+        self.audio_remove.clicked.connect(self._remove_audio_button_clicked)
         self.audio_edit = edit_button
+        self.audio_edit.clicked.connect(self._edit_audio_button_clicked)
 
         return layout
 
@@ -196,7 +195,6 @@ class MainWindow(QMainWindow):
             self._playback.start_playback()
 
     def _video_config_added(self, index, video_config):
-        print(video_config)
         # Populate Model
         check_box = QStandardItem()
         check_box.setEditable(True)
@@ -210,14 +208,11 @@ class MainWindow(QMainWindow):
             QStandardItem("0.00 kb/s"),
         ])
 
+        # Handle connecting to playback after current signal has been handled because
+        # playback source hasn't been created yet.
         QTimer.singleShot(0, lambda: self.__video_config_added_playback(index))
 
-        #source = self._playback.video_source(index)
-        #source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
-        #source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
-
     def __video_config_added_playback(self, index):
-        print("__video_config_added_playback: ", index, " ", self._playback.num_video_sources())
         source = self._playback.video_source(index)
         source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
         source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
@@ -242,12 +237,57 @@ class MainWindow(QMainWindow):
         dialog = VideoSettingsDialog(self._settings, self, index)
         dialog.exec()
 
+    def _audio_config_added(self, index, config):
+        # Populate Model
+        check_box = QStandardItem()
+        check_box.setEditable(True)
+        check_box.setCheckable(True)
+        check_box.setCheckState(Qt.CheckState.Checked)
+        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.audio_model.appendRow([
+            check_box,
+            QStandardItem(config.get("name")),
+            QStandardItem("0.0 kb/s"),
+        ])
+
+        # Handle connecting to playback after current signal has been handled because
+        # playback source hasn't been created yet.
+        QTimer.singleShot(0, lambda: self.__audio_config_added_playback(index))
+
+    def __audio_config_added_playback(self, index):
+        source = self._playback.audio_source(index)
+        source.bitrate.connect(lambda bitrate, i=index: self._audio_bitrate_updated(i, bitrate))
+
+    def _audio_config_changed(self, index, config):
+        item = self.audio_model.item(index, 1)
+        item.setText(config.get("name"))
+
+    def _audio_config_removed(self, index):
+        self.audio_model.removeRow(index)
+
+    def _add_audio_button_clicked(self, clicked):
+        dialog = AudioSettingsDialog(self._settings, self, -1)
+        dialog.exec()
+
+    def _remove_audio_button_clicked(self, clicked):
+        index = self.audio_table.selectionModel().currentIndex().row()
+        self._settings.remove_audio_config(index)
+
+    def _edit_audio_button_clicked(self, clicked):
+        index = self.audio_table.selectionModel().currentIndex().row()
+        dialog = AudioSettingsDialog(self._settings, self, index)
+        dialog.exec()
+
     def _fps_updated(self, index, fps):
         item = self.video_model.item(index, 2)
         item.setText(str(fps)+" FPS")
 
     def _video_bitrate_updated(self, index, bitrate):
         item = self.video_model.item(index, 3)
+        item.setText(str(bitrate)+" kb/s")
+
+    def _audio_bitrate_updated(self, index, bitrate):
+        item = self.audio_model.item(index, 3)
         item.setText(str(bitrate)+" kb/s")
 
     def _settings_button_clicked(self, clicked):
