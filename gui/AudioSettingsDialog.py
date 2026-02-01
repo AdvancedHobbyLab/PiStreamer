@@ -54,7 +54,7 @@ class AudioSettingsDialog(QDialog):
         grid_layout.addWidget(self.encoder, 3, 1)
 
         grid_layout.addWidget(QLabel("Address:"), 4, 0)
-        self.address_edit = QLineEdit(config.get("address", "upd://127.0.0.1:5000"))
+        self.address_edit = QLineEdit(config.get("address", "udp://127.0.0.1:5000"))
         grid_layout.addWidget(self.address_edit, 4, 1)
 
         layout.addLayout(grid_layout)
