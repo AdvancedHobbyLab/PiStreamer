@@ -150,3 +150,37 @@ class PlaybackOptions():
         model.appendRow(item)
 
         return model
+
+    def GetAudioChannels(self, device):
+        model = QStandardItemModel()
+
+        try:
+            result = subprocess.run(
+                ["arecord", "-D", device, "--dump-hw-params"],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+
+            m = re.search(
+                r"^CHANNELS:\s*(?:\[\s*([0-9\s]+)\s*\]|([0-9]+))",
+                result.stderr,
+                re.MULTILINE
+            )
+
+            if not m:
+                channels = []
+            elif m.group(1):
+                channels = [int(x) for x in m.group(1).split()]
+            else:
+                channels = [int(m.group(2))]
+
+            for channel in channels:
+                item = QStandardItem(str(channel))
+                item.setData(channel, Qt.ItemDataRole.UserRole)
+                model.appendRow(item)
+
+        except subprocess.TimeoutExpired:
+            print("The subprocess timed out!")
+
+        return model

@@ -172,6 +172,7 @@ class AudioPlaybackSource(QObject):
     def __build_pipeline_string(self):
         device = self.data["device"]
         format = self.data["format"]
+        channels = self.data["channels"]
         encoder = self.data["encoder"]  # must be opus
 
         parsed = urlparse(self.data["address"])
@@ -180,7 +181,7 @@ class AudioPlaybackSource(QObject):
         port = parsed.port
 
         out = ( "alsasrc device=" + str(device) + " "
-                "! audio/x-raw,format=" + str(format) + ",rate=48000,channels=2 "
+                "! audio/x-raw,format=" + str(format) + ",rate=48000,channels=" + str(channels) + " "
                 "! opusenc bitrate=64000 "
                 "! identity name=probe signal-handoffs=true "
                 "! mpegtsmux "

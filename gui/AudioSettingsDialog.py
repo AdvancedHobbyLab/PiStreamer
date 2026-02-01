@@ -39,23 +39,27 @@ class AudioSettingsDialog(QDialog):
         self.device.currentIndexChanged.connect(self.__device_changed)
         grid_layout.addWidget(self.device, 1, 1)
 
-        grid_layout.addWidget(QLabel("Format:"), 2, 0) #config.get("format", "S16LE")
+        grid_layout.addWidget(QLabel("Format:"), 2, 0)
         self.format = QComboBox()
         grid_layout.addWidget(self.format, 2, 1)
+
+        grid_layout.addWidget(QLabel("Channels:"), 3, 0)
+        self.channels = QComboBox()
+        grid_layout.addWidget(self.channels, 3, 1)
 
         model = QStandardItemModel()
         item = QStandardItem("opus")
         item.setData("opus", Qt.ItemDataRole.UserRole)
         model.appendRow(item)
 
-        grid_layout.addWidget(QLabel("Encoder:"), 3, 0)
+        grid_layout.addWidget(QLabel("Encoder:"), 4, 0)
         self.encoder = QComboBox()
         self.encoder.setModel(model)
-        grid_layout.addWidget(self.encoder, 3, 1)
+        grid_layout.addWidget(self.encoder, 4, 1)
 
-        grid_layout.addWidget(QLabel("Address:"), 4, 0)
+        grid_layout.addWidget(QLabel("Address:"), 5, 0)
         self.address_edit = QLineEdit(config.get("address", "udp://127.0.0.1:5000"))
-        grid_layout.addWidget(self.address_edit, 4, 1)
+        grid_layout.addWidget(self.address_edit, 5, 1)
 
         layout.addLayout(grid_layout)
 
@@ -91,14 +95,26 @@ class AudioSettingsDialog(QDialog):
                 self.format.setCurrentIndex(row)
                 break
 
+        channel = config.get("channels", "1")
+        channel_model = self.channels.model()
+        for row in range(channel_model.rowCount()):
+            item = channel_model.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == channel:
+                self.channels.setCurrentIndex(row)
+                break
+
     def __device_changed(self, row):
         formats = self.options.GetAudioFormats(self.device.currentData())
         self.format.setModel(formats)
+
+        channels = self.options.GetAudioChannels(self.device.currentData())
+        self.channels.setModel(channels)
 
     def __save_clicked(self):
         config = {"name": self.name_edit.text()}
         config["device"] = self.device.currentData()
         config["format"] = self.format.currentData()
+        config["channels"] = self.channels.currentData()
         config["encoder"] = self.encoder.currentData()
         config["address"] = self.address_edit.text()
 

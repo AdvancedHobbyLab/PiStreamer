@@ -125,6 +125,7 @@ class SettingsManager(QObject):
             config["name"] = self._settings.value("name", "Default")
             config["device"] = self._settings.value("device", "hw:1,0")
             config["format"] = self._settings.value("format", "")
+            config["channels"] = self._settings.value("channels", "1")
             config["encoder"] = self._settings.value("encoder", "copy")
             config["address"] = self._settings.value("address", "udp://127.0.0.1:5000")
             self.__audio_configs.append(config)
@@ -139,6 +140,7 @@ class SettingsManager(QObject):
             self._settings.setValue("name", config["name"])
             self._settings.setValue("device", config["device"])
             self._settings.setValue("format", config["format"])
+            self._settings.setValue("channels", config["channels"])
             self._settings.setValue("encoder", config["encoder"])
             self._settings.setValue("address", config["address"])
 
