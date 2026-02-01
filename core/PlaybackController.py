@@ -50,8 +50,9 @@ class VideoPlaybackSource(QObject):
             "-f", "v4l2",
             "-input_format", format,
             "-video_size", resolution,
+            "-framerate", framerate,
+            "-i", device,
             "-r", framerate,
-            "-i", device
         ]
 
         # Encoder Options
