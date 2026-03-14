@@ -145,6 +145,8 @@ class AudioPlaybackSource(QObject):
     def set_config(self, data):
         self.data = data
 
+        return
+
         self.pipeline = Gst.parse_launch(self.__build_pipeline_string())
 
         self.identity = self.pipeline.get_by_name("probe")

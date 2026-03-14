@@ -12,6 +12,9 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._settings = SettingsManager()
+        self._settings.stream_config_added.connect(self._stream_config_added)
+        self._settings.stream_config_changed.connect(self._stream_config_changed)
+        self._settings.stream_config_removed.connect(self._stream_config_removed)
         self._settings.video_config_added.connect(self._video_config_added)
         self._settings.video_config_changed.connect(self._video_config_changed)
         self._settings.video_config_removed.connect(self._video_config_removed)
@@ -48,39 +51,12 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout)
 
         # Initialize
-        
-
-    def __build_source_row(self, name, type):
-        # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        row =[
-            #check_box,
-            QStandardItem(name),
-            QStandardItem(type)
-        ]
-        row[0].setCheckable(True)
-        row[0].setCheckState(Qt.CheckState.Checked)
-        if type == "Stream":
-            row.append(QStandardItem("0.0 FPS"))
-            row.append(QStandardItem("0.00 kb/s"))
-
-        return row
+        self._settings.load_settings()
 
     def _build_stream_table(self):
         # Build Model
         self.stream_model = QStandardItemModel()
         self.stream_model.setHorizontalHeaderLabels(["Name", "Type", "Frame Rate", "Bit Rate"])
-
-        stream1 = self.__build_source_row("HDMI Stream", "Stream")
-        vid1 = self.__build_source_row("Camera", "Video")
-        audio1 = self.__build_source_row("External Mic", "Audio")
-        stream1[0].appendRow(vid1)
-        stream1[0].appendRow(audio1)
-        self.stream_model.appendRow(stream1)
 
         tree = QTreeView()
         tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -169,19 +145,52 @@ class MainWindow(QMainWindow):
         else:
             self._playback.start_playback()
 
-    def _video_config_added(self, index, video_config):
+    def __create_base_row(self, name, type, enabled = True):
         # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.video_model.appendRow([
-            check_box,
-            QStandardItem(video_config.get("name")),
-            QStandardItem("0.0 FPS"),
-            QStandardItem("0.00 kb/s"),
-        ])
+        row = [
+            QStandardItem(name),
+            QStandardItem(type)
+        ]
+        row[0].setCheckable(True)
+        row[0].setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
+
+        return row
+
+    def _stream_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Stream", config["enabled"])
+        row.append(QStandardItem("0.0 FPS"))
+        row.append(QStandardItem("0.00 kb/s"))
+
+        # Populate Model
+        self.stream_model.appendRow(row)
+
+        # Store for use by video/audio sources
+        config["display_item"] = row[0]
+
+        return row
+
+    def _stream_config_changed(self, index, config):
+        #item = self.video_model.item(index, 1)
+        #item.setText(video_config.get("name"))
+        pass
+
+    def _stream_config_removed(self, index):
+        #self.video_model.removeRow(index)
+        pass
+
+    def _video_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Video", config["enabled"])
+
+        # Populate Model
+        stream_item = config["stream"]["display_item"]
+        item = stream_item.appendRow(row)
+        row_index = self.stream_model.indexFromItem(stream_item)
+        self.stream_table.expand(row_index)
+
+        # Store for use by streams
+        config["display_item"] = row[0]
 
         # Handle connecting to playback after current signal has been handled because
         # playback source hasn't been created yet.
@@ -213,17 +222,17 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _audio_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Audio", config["enabled"])
+
         # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.audio_model.appendRow([
-            check_box,
-            QStandardItem(config.get("name")),
-            QStandardItem("0.0 kb/s"),
-        ])
+        stream_item = config["stream"]["display_item"]
+        item = stream_item.appendRow(row)
+        row_index = self.stream_model.indexFromItem(stream_item)
+        self.stream_table.expand(row_index)
+
+        # Store for use by streams
+        config["display_item"] = row[0]
 
         # Handle connecting to playback after current signal has been handled because
         # playback source hasn't been created yet.
