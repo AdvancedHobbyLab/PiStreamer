@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QApplication
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QTreeView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle, QMenu
 from PyQt6.QtCore import Qt, QSettings, QRect, QTimer
 from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
@@ -42,127 +41,103 @@ class MainWindow(QMainWindow):
         # Layout
         layout = QVBoxLayout()
 
-        layout.addWidget(self._build_video_table())
-        layout.addWidget(self._build_audio_table())
+        layout.addWidget(self._build_stream_table())
         layout.addLayout(self._build_button_box())
         
         # Layout
         central_widget.setLayout(layout)
 
         # Initialize
-        for i in range(self._settings.num_video_configs()):
-            config = self._settings.get_video_config(i)
-            self._video_config_added(i, config)
+        
 
-        for i in range(self._settings.num_audio_configs()):
-            config = self._settings.get_audio_config(i)
-            self._audio_config_added(i, config)
+    def __build_source_row(self, name, type):
+        # Populate Model
+        check_box = QStandardItem()
+        check_box.setEditable(True)
+        check_box.setCheckable(True)
+        check_box.setCheckState(Qt.CheckState.Checked)
+        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        row =[
+            #check_box,
+            QStandardItem(name),
+            QStandardItem(type)
+        ]
+        row[0].setCheckable(True)
+        row[0].setCheckState(Qt.CheckState.Checked)
+        if type == "Stream":
+            row.append(QStandardItem("0.0 FPS"))
+            row.append(QStandardItem("0.00 kb/s"))
 
-    def __build_source_table(self, name, model):
-        box = QGroupBox(name)
-        box.setMinimumWidth(500)
+        return row
 
-        # Layout
-        layout = QVBoxLayout()
+    def _build_stream_table(self):
+        # Build Model
+        self.stream_model = QStandardItemModel()
+        self.stream_model.setHorizontalHeaderLabels(["Name", "Type", "Frame Rate", "Bit Rate"])
 
-        # QTableView
-        table = QTableView()
-        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setEditTriggers(table.EditTrigger.NoEditTriggers)
-        table.setModel(model)
+        stream1 = self.__build_source_row("HDMI Stream", "Stream")
+        vid1 = self.__build_source_row("Camera", "Video")
+        audio1 = self.__build_source_row("External Mic", "Audio")
+        stream1[0].appendRow(vid1)
+        stream1[0].appendRow(audio1)
+        self.stream_model.appendRow(stream1)
 
-        table.setSelectionBehavior(table.SelectionBehavior.SelectRows)
-        table.setSelectionMode(table.SelectionMode.SingleSelection)
-        table.setAlternatingRowColors(True)
-        layout.addWidget(table)
+        tree = QTreeView()
+        tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        tree.setEditTriggers(tree.EditTrigger.NoEditTriggers)
+        tree.setModel(self.stream_model)
+        tree.setMinimumWidth(600)
+        self.stream_table = tree
+
+        tree.setSelectionBehavior(tree.SelectionBehavior.SelectRows)
+        tree.setSelectionMode(tree.SelectionMode.SingleSelection)
+        tree.setAlternatingRowColors(True)
 
         # Set Header Column Behavior
-        header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        if model.columnCount() == 3:
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(2, 200)
-        else:
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(2, 120)
-            header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(3, 200)
+        header = tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(1, 100)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(2, 120)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(3, 150)
+        header.setStretchLastSection(False)
 
-        # Vertical Header
-        table.verticalHeader().setVisible(False)
+        tree.expandAll()
 
-        # Button Box
-        button_layout = QHBoxLayout()
-        add_button = QPushButton("Add")
-        add_button.setToolTip("Add")
+        tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(self.__open_context_menu)
 
-        remove_button = QPushButton("Remove")
-        remove_button.setToolTip("Remove")
-        remove_button.setEnabled(False)
+        return tree
 
-        edit_button = QPushButton("Edit")
-        edit_button.setToolTip("Edit")
-        edit_button.setEnabled(False)
+    def __open_context_menu(self, position):
+        index = self.stream_table.indexAt(position)
 
-        for btn in (add_button, remove_button, edit_button):
-            btn.setStyleSheet("""
-                font-size: 18px;
-                padding: 10px;
-            """)
-            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            button_layout.addWidget(btn)
+        menu = QMenu()
+        menu.addAction("New Stream...")
 
-        # Finalize
-        layout.addLayout(button_layout)
-        box.setLayout(layout)
+        if index.isValid():
+            index = index.siblingAtColumn(1)
+            item = self.stream_model.itemFromIndex(index)
 
-        return box, table, add_button, remove_button, edit_button
+            if item.text() == "Stream":
+                menu.addAction("Remove Stream")
+                menu.addSeparator()
+                menu.addAction("New Video Source...")
+                menu.addAction("New Audio Source...")
+            if item.text() == "Video":
+                menu.addSeparator()
+                menu.addAction("Edit Video Source...")
+                menu.addAction("Remove Video Source")
+            if item.text() == "Audio":
+                menu.addSeparator()
+                menu.addAction("Edit Audio Source...")
+                menu.addAction("Remove Audio Source")
+            menu.addSeparator()
 
-    def _build_video_table(self):
-        # Build Model
-        eye_icon = QIcon.fromTheme("view-visible")
-
-        self.video_model = QStandardItemModel()
-        self.video_model.setHorizontalHeaderLabels(["", "Name", "Frame Rate", "Bit Rate"])
-        self.video_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
-
-        # Build Table
-        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Video Sources", self.video_model)
-
-        self.video_table = table
-        self.video_table.selectionModel().selectionChanged.connect(self._video_selection_changed)
-        self.video_add = add_button
-        self.video_add.clicked.connect(self._add_video_button_clicked)
-        self.video_remove = remove_button
-        self.video_remove.clicked.connect(self._remove_video_button_clicked)
-        self.video_edit = edit_button
-        self.video_edit.clicked.connect(self._edit_video_button_clicked)
-
-        return layout
-
-    def _build_audio_table(self):
-        # Build Model
-        eye_icon = QIcon.fromTheme("view-visible")
-
-        self.audio_model = QStandardItemModel()
-        self.audio_model.setHorizontalHeaderLabels(["", "Name", "Bit Rate"])
-        self.audio_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
-
-        # Build Table
-        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Audio Sources", self.audio_model)
-
-        self.audio_table = table
-        self.audio_table.selectionModel().selectionChanged.connect(self._audio_selection_changed)
-        self.audio_add = add_button
-        self.audio_add.clicked.connect(self._add_audio_button_clicked)
-        self.audio_remove = remove_button
-        self.audio_remove.clicked.connect(self._remove_audio_button_clicked)
-        self.audio_edit = edit_button
-        self.audio_edit.clicked.connect(self._edit_audio_button_clicked)
-
-        return layout
+        menu.exec(self.stream_table.viewport().mapToGlobal(position))
 
     def _build_button_box(self):
         layout = QHBoxLayout()
