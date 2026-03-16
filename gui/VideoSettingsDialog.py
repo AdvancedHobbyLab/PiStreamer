@@ -197,7 +197,7 @@ class VideoSettingsDialog(QDialog):
             tabs.addTab(tab, label)
 
         config = {}
-        if index >= 0:
+        if isinstance(self.__index, int):
             config = self.__settings.get_video_config(self.__index)
 
         self.name_edit.setText(config.get("name", "Default"))
@@ -222,12 +222,17 @@ class VideoSettingsDialog(QDialog):
         self.setLayout(layout)
 
     def __save_clicked(self):
-        config = {"name": self.name_edit.text()}
+        if isinstance(self.__index, int):
+            config = self.__settings.get_video_config(self.__index)
+        else:
+            config = {"enabled": True}
+
+        config["name"] = self.name_edit.text()
         for tab in self.__tabs:
             config.update(tab.GetSettings())
 
-        print("Save: ", config)
-        if self.__index >= 0:
+        if isinstance(self.__index, int):
             self.__settings.update_video_config(self.__index, config)
         else:
+            config["stream"] = self.__index
             self.__settings.add_video_config(config)

@@ -8,11 +8,11 @@ class SettingsManager(QObject):
 
     video_config_added = pyqtSignal(int, dict)      # index, data
     video_config_changed = pyqtSignal(int, dict)    # index, data
-    video_config_removed = pyqtSignal(int)          # index
+    video_config_removed = pyqtSignal(int, dict)    # index, data
 
-    audio_config_added = pyqtSignal(int, dict)  # index, data
-    audio_config_changed = pyqtSignal(int, dict)  # index, data
-    audio_config_removed = pyqtSignal(int)  # index
+    audio_config_added = pyqtSignal(int, dict)      # index, data
+    audio_config_changed = pyqtSignal(int, dict)    # index, data
+    audio_config_removed = pyqtSignal(int, dict)    # index, data
 
     def __init__(self):
         super().__init__()
@@ -44,6 +44,7 @@ class SettingsManager(QObject):
         return self.__stream_configs[index]
 
     def add_stream_config(self, data):
+        data["index"] = len(self.__stream_configs)
         self.__stream_configs.append(data)
 
         self.__save_stream_configs()
@@ -71,6 +72,7 @@ class SettingsManager(QObject):
         return self.__video_configs[index]
 
     def add_video_config(self, data):
+        data["index"] = len(self.__video_configs)
         self.__video_configs.append(data)
 
         self.__save_video_configs()
@@ -78,11 +80,12 @@ class SettingsManager(QObject):
         self.video_config_added.emit(len(self.__video_configs)-1, data)
 
     def remove_video_config(self, index):
+        config = self.get_video_config(index)
         self.__video_configs.pop(index)
 
         self.__save_video_configs()
 
-        self.video_config_removed.emit(index)
+        self.video_config_removed.emit(index, config)
 
     def update_video_config(self, index, data):
         self.__video_configs[index] = data
@@ -98,6 +101,7 @@ class SettingsManager(QObject):
         return self.__audio_configs[index]
 
     def add_audio_config(self, data):
+        data["index"] = len(self.__audio_configs)
         self.__audio_configs.append(data)
 
         self.__save_audio_configs()
@@ -105,11 +109,12 @@ class SettingsManager(QObject):
         self.audio_config_added.emit(len(self.__audio_configs)-1, data)
 
     def remove_audio_config(self, index):
+        config = self.get_audio_config(index)
         self.__audio_configs.pop(index)
 
         self.__save_audio_configs()
 
-        self.audio_config_removed.emit(index)
+        self.audio_config_removed.emit(index, config)
 
     def update_audio_config(self, index, data):
         self.__audio_configs[index] = data
@@ -126,6 +131,7 @@ class SettingsManager(QObject):
         for i in range(size):
             config = {}
             self._settings.setArrayIndex(i)
+            config["index"] = i
             config["enabled"] = int(self._settings.value("enabled", "1")) > 0
             config["name"] = self._settings.value("name", "Default")
             config["address"] = self._settings.value("address", "udpL//127.0.0.1:5000")
@@ -154,6 +160,7 @@ class SettingsManager(QObject):
         for i in range(size):
             config = {}
             self._settings.setArrayIndex(i)
+            config["index"] = i
             config["enabled"] = int(self._settings.value("enabled", "1"))>0
             config["name"] = self._settings.value("name", "Default")
             config["device"] = self._settings.value("device", "/dev/video0")
@@ -198,6 +205,7 @@ class SettingsManager(QObject):
         for i in range(size):
             config = {}
             self._settings.setArrayIndex(i)
+            config["index"] = i
             config["enabled"] = int(self._settings.value("enabled", "1")) > 0
             config["name"] = self._settings.value("name", "Default")
             config["device"] = self._settings.value("device", "hw:1,0")

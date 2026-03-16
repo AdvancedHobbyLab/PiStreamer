@@ -98,19 +98,31 @@ class MainWindow(QMainWindow):
             index = index.siblingAtColumn(1)
             item = self.stream_model.itemFromIndex(index)
 
+            index = index.siblingAtColumn(0)
+            data_index = self.stream_model.itemFromIndex(index).data(Qt.ItemDataRole.UserRole)
+
             if item.text() == "Stream":
                 menu.addAction("Remove Stream")
                 menu.addSeparator()
-                menu.addAction("New Video Source...")
-                menu.addAction("New Audio Source...")
+                new_video = menu.addAction("New Video Source...")
+                new_audio = menu.addAction("New Audio Source...")
+
+                new_video.triggered.connect(lambda clicked: self._add_video_button_clicked(data_index, clicked))
+                new_audio.triggered.connect(lambda clicked: self._add_audio_button_clicked(data_index, clicked))
             if item.text() == "Video":
                 menu.addSeparator()
-                menu.addAction("Edit Video Source...")
-                menu.addAction("Remove Video Source")
+                edit = menu.addAction("Edit Video Source...")
+                remove = menu.addAction("Remove Video Source")
+
+                edit.triggered.connect(lambda clicked: self._edit_video_button_clicked(data_index, clicked))
+                remove.triggered.connect(lambda clicked: self._remove_video_button_clicked(data_index, clicked))
             if item.text() == "Audio":
                 menu.addSeparator()
-                menu.addAction("Edit Audio Source...")
-                menu.addAction("Remove Audio Source")
+                edit = menu.addAction("Edit Audio Source...")
+                remove = menu.addAction("Remove Audio Source")
+
+                edit.triggered.connect(lambda clicked: self._edit_audio_button_clicked(data_index, clicked))
+                remove.triggered.connect(lambda clicked: self._remove_audio_button_clicked(data_index, clicked))
             menu.addSeparator()
 
         menu.exec(self.stream_table.viewport().mapToGlobal(position))
@@ -167,6 +179,7 @@ class MainWindow(QMainWindow):
 
         # Store for use by video/audio sources
         config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
         return row
 
@@ -191,6 +204,7 @@ class MainWindow(QMainWindow):
 
         # Store for use by streams
         config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
         # Handle connecting to playback after current signal has been handled because
         # playback source hasn't been created yet.
@@ -202,22 +216,20 @@ class MainWindow(QMainWindow):
         source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
 
     def _video_config_changed(self, index, video_config):
-        item = self.video_model.item(index, 1)
+        item = video_config["display_item"]
         item.setText(video_config.get("name"))
 
-    def _video_config_removed(self, index):
-        self.video_model.removeRow(index)
+    def _video_config_removed(self, index, config):
+        config["stream"]["display_item"].removeRow(config["display_item"].row())
 
-    def _add_video_button_clicked(self, clicked):
-        dialog = VideoSettingsDialog(self._settings, self, -1)
+    def _add_video_button_clicked(self, stream_index, clicked):
+        dialog = VideoSettingsDialog(self._settings, self, self._settings.get_stream_config(stream_index))
         dialog.exec()
 
-    def _remove_video_button_clicked(self, clicked):
-        index = self.video_table.selectionModel().currentIndex().row()
+    def _remove_video_button_clicked(self, index, clicked):
         self._settings.remove_video_config(index)
 
-    def _edit_video_button_clicked(self, clicked):
-        index = self.video_table.selectionModel().currentIndex().row()
+    def _edit_video_button_clicked(self, index, clicked):
         dialog = VideoSettingsDialog(self._settings, self, index)
         dialog.exec()
 
@@ -233,6 +245,7 @@ class MainWindow(QMainWindow):
 
         # Store for use by streams
         config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
         # Handle connecting to playback after current signal has been handled because
         # playback source hasn't been created yet.
@@ -243,22 +256,20 @@ class MainWindow(QMainWindow):
         source.bitrate.connect(lambda bitrate, i=index: self._audio_bitrate_updated(i, bitrate))
 
     def _audio_config_changed(self, index, config):
-        item = self.audio_model.item(index, 1)
+        item = config["display_item"]
         item.setText(config.get("name"))
 
-    def _audio_config_removed(self, index):
-        self.audio_model.removeRow(index)
+    def _audio_config_removed(self, index, config):
+        config["stream"]["display_item"].removeRow(config["display_item"].row())
 
-    def _add_audio_button_clicked(self, clicked):
-        dialog = AudioSettingsDialog(self._settings, self, -1)
+    def _add_audio_button_clicked(self, stream_index, clicked):
+        dialog = AudioSettingsDialog(self._settings, self, self._settings.get_stream_config(stream_index))
         dialog.exec()
 
-    def _remove_audio_button_clicked(self, clicked):
-        index = self.audio_table.selectionModel().currentIndex().row()
+    def _remove_audio_button_clicked(self, index, clicked):
         self._settings.remove_audio_config(index)
 
-    def _edit_audio_button_clicked(self, clicked):
-        index = self.audio_table.selectionModel().currentIndex().row()
+    def _edit_audio_button_clicked(self, index, clicked):
         dialog = AudioSettingsDialog(self._settings, self, index)
         dialog.exec()
 
