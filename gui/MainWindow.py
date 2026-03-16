@@ -4,6 +4,7 @@ from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
 from core.SettingsManager import SettingsManager
 from core.PlaybackController import PlaybackController
+from gui.StreamSettingsDialog import StreamSettingsDialog
 from gui.VideoSettingsDialog import VideoSettingsDialog
 from gui.AudioSettingsDialog import AudioSettingsDialog
 
@@ -92,7 +93,8 @@ class MainWindow(QMainWindow):
         index = self.stream_table.indexAt(position)
 
         menu = QMenu()
-        menu.addAction("New Stream...")
+        new_stream = menu.addAction("New Stream...")
+        new_stream.triggered.connect(self._add_stream_button_clicked)
 
         if index.isValid():
             index = index.siblingAtColumn(1)
@@ -102,11 +104,14 @@ class MainWindow(QMainWindow):
             data_index = self.stream_model.itemFromIndex(index).data(Qt.ItemDataRole.UserRole)
 
             if item.text() == "Stream":
-                menu.addAction("Remove Stream")
+                edit_stream = menu.addAction("Edit Stream...")
+                remove_stream = menu.addAction("Remove Stream")
                 menu.addSeparator()
                 new_video = menu.addAction("New Video Source...")
                 new_audio = menu.addAction("New Audio Source...")
 
+                edit_stream.triggered.connect(lambda clicked: self._edit_stream_button_clicked(data_index, clicked))
+                remove_stream.triggered.connect(lambda clicked: self._remove_stream_button_clicked(data_index, clicked))
                 new_video.triggered.connect(lambda clicked: self._add_video_button_clicked(data_index, clicked))
                 new_audio.triggered.connect(lambda clicked: self._add_audio_button_clicked(data_index, clicked))
             if item.text() == "Video":
@@ -184,13 +189,22 @@ class MainWindow(QMainWindow):
         return row
 
     def _stream_config_changed(self, index, config):
-        #item = self.video_model.item(index, 1)
-        #item.setText(video_config.get("name"))
-        pass
+        item = config["display_item"]
+        item.setText(config.get("name"))
 
-    def _stream_config_removed(self, index):
-        #self.video_model.removeRow(index)
-        pass
+    def _stream_config_removed(self, index, config):
+        self.stream_model.removeRow(config["display_item"].row())
+
+    def _add_stream_button_clicked(self, clicked):
+        dialog = StreamSettingsDialog(self._settings, self, -1)
+        dialog.exec()
+
+    def _remove_stream_button_clicked(self, index, clicked):
+        self._settings.remove_stream_config(index)
+
+    def _edit_stream_button_clicked(self, index, clicked):
+        dialog = StreamSettingsDialog(self._settings, self, index)
+        dialog.exec()
 
     def _video_config_added(self, index, config):
         # Build Row

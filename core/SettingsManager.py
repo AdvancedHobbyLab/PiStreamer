@@ -4,7 +4,7 @@ class SettingsManager(QObject):
     # Signals
     stream_config_added = pyqtSignal(int, dict)     # index, data
     stream_config_changed = pyqtSignal(int, dict)   # index, data
-    stream_config_removed = pyqtSignal(int)         # index
+    stream_config_removed = pyqtSignal(int, dict)   # index. data
 
     video_config_added = pyqtSignal(int, dict)      # index, data
     video_config_changed = pyqtSignal(int, dict)    # index, data
@@ -45,6 +45,8 @@ class SettingsManager(QObject):
 
     def add_stream_config(self, data):
         data["index"] = len(self.__stream_configs)
+        data["video_configs"] = []
+        data["audio_configs"] = []
         self.__stream_configs.append(data)
 
         self.__save_stream_configs()
@@ -52,11 +54,12 @@ class SettingsManager(QObject):
         self.stream_config_added.emit(len(self.__stream_configs)-1, data)
 
     def remove_stream_config(self, index):
+        config = self.get_stream_config(index)
         self.__stream_configs.pop(index)
 
         self.__save_stream_configs()
 
-        self.stream_config_removed.emit(index)
+        self.stream_config_removed.emit(index, config)
 
     def update_stream_config(self, index, data):
         self.__stream_configs[index] = data
