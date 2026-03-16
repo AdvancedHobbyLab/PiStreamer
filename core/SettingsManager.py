@@ -55,6 +55,13 @@ class SettingsManager(QObject):
 
     def remove_stream_config(self, index):
         config = self.get_stream_config(index)
+
+        while len(config["video_configs"]):
+            self.remove_video_config(config["video_configs"][0]["index"])
+
+        while len(config["audio_configs"]):
+            self.remove_audio_config(config["audio_configs"][0]["index"])
+
         self.__stream_configs.pop(index)
 
         self.__save_stream_configs()
@@ -76,6 +83,7 @@ class SettingsManager(QObject):
 
     def add_video_config(self, data):
         data["index"] = len(self.__video_configs)
+        data["stream"]["video_configs"].append(data)
         self.__video_configs.append(data)
 
         self.__save_video_configs()
@@ -84,6 +92,7 @@ class SettingsManager(QObject):
 
     def remove_video_config(self, index):
         config = self.get_video_config(index)
+        config["stream"]["video_configs"].remove(config)
         self.__video_configs.pop(index)
 
         self.__save_video_configs()
@@ -105,6 +114,7 @@ class SettingsManager(QObject):
 
     def add_audio_config(self, data):
         data["index"] = len(self.__audio_configs)
+        data["stream"]["audio_configs"].append(data)
         self.__audio_configs.append(data)
 
         self.__save_audio_configs()
@@ -113,6 +123,7 @@ class SettingsManager(QObject):
 
     def remove_audio_config(self, index):
         config = self.get_audio_config(index)
+        config["stream"]["audio_configs"].remove(config)
         self.__audio_configs.pop(index)
 
         self.__save_audio_configs()
