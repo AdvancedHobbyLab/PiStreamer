@@ -57,10 +57,6 @@ class AudioSettingsDialog(QDialog):
         self.encoder.setModel(model)
         grid_layout.addWidget(self.encoder, 4, 1)
 
-        grid_layout.addWidget(QLabel("Address:"), 5, 0)
-        self.address_edit = QLineEdit(config.get("address", "udp://127.0.0.1:5000"))
-        grid_layout.addWidget(self.address_edit, 5, 1)
-
         layout.addLayout(grid_layout)
 
         # Buttons: Save / Cancel
@@ -121,7 +117,6 @@ class AudioSettingsDialog(QDialog):
         config["format"] = self.format.currentData()
         config["channels"] = self.channels.currentData()
         config["encoder"] = self.encoder.currentData()
-        config["address"] = self.address_edit.text()
 
         if isinstance(self.__index, int):
             self.__settings.update_audio_config(self.__index, config)

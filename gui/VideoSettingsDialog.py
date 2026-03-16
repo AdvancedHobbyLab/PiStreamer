@@ -91,30 +91,6 @@ class InputTab(QWidget):
             "framerate": self.framerate.value()
         }
 
-class OutputTab(QWidget):
-    def __init__(self, options):
-        super().__init__()
-
-        layout = QVBoxLayout()
-        address_layout = QHBoxLayout()
-        layout.addLayout(address_layout)
-
-        address_layout.addWidget(QLabel("Address:"))
-        self.address_edit = QLineEdit()
-        address_layout.addWidget(self.address_edit)
-
-        layout.addWidget(QLabel("Ex. udp://<remote_address>:5000"))
-
-        layout.addStretch()
-        self.setLayout(layout)
-
-    def LoadSettings(self, config):
-        self.address_edit.setText(config.get("address", "127.0.0.1:5000"))
-
-    def GetSettings(self):
-        return {"address": self.address_edit.text()}
-
-
 class EncoderTab(QWidget):
     def __init__(self, options):
         super().__init__()
@@ -189,8 +165,7 @@ class VideoSettingsDialog(QDialog):
         tabs = QTabWidget()
         self.__tabs = [
             InputTab(options),
-            EncoderTab(options),
-            OutputTab(options)
+            EncoderTab(options)
         ]
         display_names = ["Input", "Encoder", "Output"]
         for tab, label in zip(self.__tabs, display_names):
