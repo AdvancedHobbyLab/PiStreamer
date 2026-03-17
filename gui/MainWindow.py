@@ -186,7 +186,22 @@ class MainWindow(QMainWindow):
         config["display_item"] = row[0]
         row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
-        return row
+        # Handle connecting to playback after current signal has been handled because
+        # playback source hasn't been created yet.
+        QTimer.singleShot(0, lambda: self.__stream_config_added_playback(index))
+
+    def __stream_config_added_playback(self, index):
+        stream = self._playback.get_stream(index)
+        stream.fps.connect(lambda fps, i=index: self.__stream_fps_updated(i, fps))
+        stream.bitrate.connect(lambda bitrate, i=index: self.__stream_bitrate_updated(i, bitrate))
+
+    def __stream_fps_updated(self, index, fps):
+        item = self.stream_model.item(index, 2)
+        item.setText(str(fps) + " FPS")
+
+    def __stream_bitrate_updated(self, index, bitrate):
+        item = self.stream_model.item(index, 3)
+        item.setText(f"{float(bitrate):.1f} kb/s")
 
     def _stream_config_changed(self, index, config):
         item = config["display_item"]
@@ -220,15 +235,6 @@ class MainWindow(QMainWindow):
         config["display_item"] = row[0]
         row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
-        # Handle connecting to playback after current signal has been handled because
-        # playback source hasn't been created yet.
-        QTimer.singleShot(0, lambda: self.__video_config_added_playback(index))
-
-    def __video_config_added_playback(self, index):
-        source = self._playback.video_source(index)
-        source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
-        source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
-
     def _video_config_changed(self, index, video_config):
         item = video_config["display_item"]
         item.setText(video_config.get("name"))
@@ -261,14 +267,6 @@ class MainWindow(QMainWindow):
         config["display_item"] = row[0]
         row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
-        # Handle connecting to playback after current signal has been handled because
-        # playback source hasn't been created yet.
-        QTimer.singleShot(0, lambda: self.__audio_config_added_playback(index))
-
-    def __audio_config_added_playback(self, index):
-        source = self._playback.audio_source(index)
-        source.bitrate.connect(lambda bitrate, i=index: self._audio_bitrate_updated(i, bitrate))
-
     def _audio_config_changed(self, index, config):
         item = config["display_item"]
         item.setText(config.get("name"))
@@ -286,18 +284,6 @@ class MainWindow(QMainWindow):
     def _edit_audio_button_clicked(self, index, clicked):
         dialog = AudioSettingsDialog(self._settings, self, index)
         dialog.exec()
-
-    def _fps_updated(self, index, fps):
-        item = self.video_model.item(index, 2)
-        item.setText(str(fps)+" FPS")
-
-    def _video_bitrate_updated(self, index, bitrate):
-        item = self.video_model.item(index, 3)
-        item.setText(f"{float(bitrate):.1f} kb/s")
-
-    def _audio_bitrate_updated(self, index, bitrate):
-        item = self.audio_model.item(index, 2)
-        item.setText(f"{float(bitrate):.2f} kb/s")
 
     def _settings_button_clicked(self, clicked):
         dialog = VideoSettingsDialog(self._settings, self)
