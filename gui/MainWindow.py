@@ -1,10 +1,10 @@
-from PyQt5.QtWidgets import QApplication
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QGroupBox, QLabel, QSizePolicy, QTableView, QTreeView, QToolButton, QHeaderView, QStyledItemDelegate, QStyleOptionButton, QStyle, QMenu
 from PyQt6.QtCore import Qt, QSettings, QRect, QTimer
 from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem
 
 from core.SettingsManager import SettingsManager
 from core.PlaybackController import PlaybackController
+from gui.StreamSettingsDialog import StreamSettingsDialog
 from gui.VideoSettingsDialog import VideoSettingsDialog
 from gui.AudioSettingsDialog import AudioSettingsDialog
 
@@ -13,6 +13,9 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._settings = SettingsManager()
+        self._settings.stream_config_added.connect(self._stream_config_added)
+        self._settings.stream_config_changed.connect(self._stream_config_changed)
+        self._settings.stream_config_removed.connect(self._stream_config_removed)
         self._settings.video_config_added.connect(self._video_config_added)
         self._settings.video_config_changed.connect(self._video_config_changed)
         self._settings.video_config_removed.connect(self._video_config_removed)
@@ -42,127 +45,97 @@ class MainWindow(QMainWindow):
         # Layout
         layout = QVBoxLayout()
 
-        layout.addWidget(self._build_video_table())
-        layout.addWidget(self._build_audio_table())
+        layout.addWidget(self._build_stream_table())
         layout.addLayout(self._build_button_box())
         
         # Layout
         central_widget.setLayout(layout)
 
         # Initialize
-        for i in range(self._settings.num_video_configs()):
-            config = self._settings.get_video_config(i)
-            self._video_config_added(i, config)
+        self._settings.load_settings()
 
-        for i in range(self._settings.num_audio_configs()):
-            config = self._settings.get_audio_config(i)
-            self._audio_config_added(i, config)
+    def _build_stream_table(self):
+        # Build Model
+        self.stream_model = QStandardItemModel()
+        self.stream_model.setHorizontalHeaderLabels(["Name", "Type", "Frame Rate", "Bit Rate"])
+        self.stream_model.itemChanged.connect(self.__model_item_changed)
 
-    def __build_source_table(self, name, model):
-        box = QGroupBox(name)
-        box.setMinimumWidth(500)
+        tree = QTreeView()
+        tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        tree.setEditTriggers(tree.EditTrigger.NoEditTriggers)
+        tree.setModel(self.stream_model)
+        tree.setMinimumWidth(600)
+        self.stream_table = tree
 
-        # Layout
-        layout = QVBoxLayout()
-
-        # QTableView
-        table = QTableView()
-        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setEditTriggers(table.EditTrigger.NoEditTriggers)
-        table.setModel(model)
-
-        table.setSelectionBehavior(table.SelectionBehavior.SelectRows)
-        table.setSelectionMode(table.SelectionMode.SingleSelection)
-        table.setAlternatingRowColors(True)
-        layout.addWidget(table)
+        tree.setSelectionBehavior(tree.SelectionBehavior.SelectRows)
+        tree.setSelectionMode(tree.SelectionMode.SingleSelection)
+        tree.setAlternatingRowColors(True)
 
         # Set Header Column Behavior
-        header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        if model.columnCount() == 3:
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(2, 200)
-        else:
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(2, 120)
-            header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(3, 200)
+        header = tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(1, 100)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(2, 120)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(3, 150)
+        header.setStretchLastSection(False)
 
-        # Vertical Header
-        table.verticalHeader().setVisible(False)
+        tree.expandAll()
 
-        # Button Box
-        button_layout = QHBoxLayout()
-        add_button = QPushButton("Add")
-        add_button.setToolTip("Add")
+        tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(self.__open_context_menu)
 
-        remove_button = QPushButton("Remove")
-        remove_button.setToolTip("Remove")
-        remove_button.setEnabled(False)
+        return tree
 
-        edit_button = QPushButton("Edit")
-        edit_button.setToolTip("Edit")
-        edit_button.setEnabled(False)
+    def __open_context_menu(self, position):
+        index = self.stream_table.indexAt(position)
 
-        for btn in (add_button, remove_button, edit_button):
-            btn.setStyleSheet("""
-                font-size: 18px;
-                padding: 10px;
-            """)
-            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            button_layout.addWidget(btn)
+        # Don't allow editing if currently running
+        if self._playback.state():
+            return
 
-        # Finalize
-        layout.addLayout(button_layout)
-        box.setLayout(layout)
+        menu = QMenu()
+        new_stream = menu.addAction("New Stream...")
+        new_stream.triggered.connect(self._add_stream_button_clicked)
 
-        return box, table, add_button, remove_button, edit_button
+        if index.isValid():
+            index = index.siblingAtColumn(1)
+            item = self.stream_model.itemFromIndex(index)
 
-    def _build_video_table(self):
-        # Build Model
-        eye_icon = QIcon.fromTheme("view-visible")
+            index = index.siblingAtColumn(0)
+            data_index = self.stream_model.itemFromIndex(index).data(Qt.ItemDataRole.UserRole)
 
-        self.video_model = QStandardItemModel()
-        self.video_model.setHorizontalHeaderLabels(["", "Name", "Frame Rate", "Bit Rate"])
-        self.video_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
+            if item.text() == "Stream":
+                edit_stream = menu.addAction("Edit Stream...")
+                remove_stream = menu.addAction("Remove Stream")
+                menu.addSeparator()
+                new_video = menu.addAction("New Video Source...")
+                new_audio = menu.addAction("New Audio Source...")
 
-        # Build Table
-        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Video Sources", self.video_model)
+                edit_stream.triggered.connect(lambda clicked: self._edit_stream_button_clicked(data_index, clicked))
+                remove_stream.triggered.connect(lambda clicked: self._remove_stream_button_clicked(data_index, clicked))
+                new_video.triggered.connect(lambda clicked: self._add_video_button_clicked(data_index, clicked))
+                new_audio.triggered.connect(lambda clicked: self._add_audio_button_clicked(data_index, clicked))
+            if item.text() == "Video":
+                menu.addSeparator()
+                edit = menu.addAction("Edit Video Source...")
+                remove = menu.addAction("Remove Video Source")
 
-        self.video_table = table
-        self.video_table.selectionModel().selectionChanged.connect(self._video_selection_changed)
-        self.video_add = add_button
-        self.video_add.clicked.connect(self._add_video_button_clicked)
-        self.video_remove = remove_button
-        self.video_remove.clicked.connect(self._remove_video_button_clicked)
-        self.video_edit = edit_button
-        self.video_edit.clicked.connect(self._edit_video_button_clicked)
+                edit.triggered.connect(lambda clicked: self._edit_video_button_clicked(data_index, clicked))
+                remove.triggered.connect(lambda clicked: self._remove_video_button_clicked(data_index, clicked))
+            if item.text() == "Audio":
+                menu.addSeparator()
+                edit = menu.addAction("Edit Audio Source...")
+                remove = menu.addAction("Remove Audio Source")
 
-        return layout
+                edit.triggered.connect(lambda clicked: self._edit_audio_button_clicked(data_index, clicked))
+                remove.triggered.connect(lambda clicked: self._remove_audio_button_clicked(data_index, clicked))
+            menu.addSeparator()
 
-    def _build_audio_table(self):
-        # Build Model
-        eye_icon = QIcon.fromTheme("view-visible")
-
-        self.audio_model = QStandardItemModel()
-        self.audio_model.setHorizontalHeaderLabels(["", "Name", "Bit Rate"])
-        self.audio_model.setHeaderData(0, Qt.Orientation.Horizontal, eye_icon, Qt.ItemDataRole.DecorationRole)
-
-        # Build Table
-        layout, table, add_button, remove_button, edit_button = self.__build_source_table("Audio Sources", self.audio_model)
-
-        self.audio_table = table
-        self.audio_table.selectionModel().selectionChanged.connect(self._audio_selection_changed)
-        self.audio_add = add_button
-        self.audio_add.clicked.connect(self._add_audio_button_clicked)
-        self.audio_remove = remove_button
-        self.audio_remove.clicked.connect(self._remove_audio_button_clicked)
-        self.audio_edit = edit_button
-        self.audio_edit.clicked.connect(self._edit_audio_button_clicked)
-
-        return layout
+        menu.exec(self.stream_table.viewport().mapToGlobal(position))
 
     def _build_button_box(self):
         layout = QHBoxLayout()
@@ -194,101 +167,159 @@ class MainWindow(QMainWindow):
         else:
             self._playback.start_playback()
 
-    def _video_config_added(self, index, video_config):
+    def __model_item_changed(self, item):
+        if item.isCheckable():
+            index = item.data(Qt.ItemDataRole.UserRole)
+            model_index = item.index()
+            type = self.stream_model.itemFromIndex(model_index.sibling(model_index.row(), 1)).text()
+            new_state = item.checkState() == Qt.CheckState.Checked
+            if type == "Stream":
+                stream = self._settings.get_stream_config(index)
+                stream["enabled"] = new_state
+                self._settings.update_stream_config(index, stream)
+            elif type == "Video":
+                video = self._settings.get_video_config(index)
+                video["enabled"] = new_state
+                self._settings.update_video_config(index, video)
+            elif type == "Audio":
+                audio = self._settings.get_audio_config(index)
+                audio["enabled"] = new_state
+                self._settings.update_audio_config(index, audio)
+
+    def __create_base_row(self, name, type, enabled = True):
         # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.video_model.appendRow([
-            check_box,
-            QStandardItem(video_config.get("name")),
-            QStandardItem("0.0 FPS"),
-            QStandardItem("0.00 kb/s"),
-        ])
+        row = [
+            QStandardItem(name),
+            QStandardItem(type)
+        ]
+        row[0].setCheckable(True)
+        row[0].setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
+
+        return row
+
+    def _stream_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Stream", config["enabled"])
+        row.append(QStandardItem("0.0 FPS"))
+        row.append(QStandardItem("0.00 kb/s"))
+
+        # Populate Model
+        self.stream_model.appendRow(row)
+
+        # Store for use by video/audio sources
+        config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
         # Handle connecting to playback after current signal has been handled because
         # playback source hasn't been created yet.
-        QTimer.singleShot(0, lambda: self.__video_config_added_playback(index))
+        QTimer.singleShot(0, lambda: self.__stream_config_added_playback(index))
 
-    def __video_config_added_playback(self, index):
-        source = self._playback.video_source(index)
-        source.fps.connect(lambda fps, i=index: self._fps_updated(i, fps))
-        source.bitrate.connect(lambda bitrate, i=index: self._video_bitrate_updated(i, bitrate))
+    def __stream_config_added_playback(self, index):
+        stream = self._playback.get_stream(index)
+        stream.fps.connect(lambda fps, i=index: self.__stream_fps_updated(i, fps))
+        stream.bitrate.connect(lambda bitrate, i=index: self.__stream_bitrate_updated(i, bitrate))
 
-    def _video_config_changed(self, index, video_config):
-        item = self.video_model.item(index, 1)
-        item.setText(video_config.get("name"))
+    def __stream_fps_updated(self, index, fps):
+        item = self.stream_model.item(index, 2)
+        item.setText(str(fps) + " FPS")
 
-    def _video_config_removed(self, index):
-        self.video_model.removeRow(index)
+    def __stream_bitrate_updated(self, index, bitrate):
+        item = self.stream_model.item(index, 3)
+        item.setText(f"{float(bitrate):.1f} kb/s")
 
-    def _add_video_button_clicked(self, clicked):
-        dialog = VideoSettingsDialog(self._settings, self, -1)
+    def _stream_config_changed(self, index, config):
+        item = config["display_item"]
+        item.setText(config.get("name"))
+
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
+
+    def _stream_config_removed(self, index, config):
+        self.stream_model.removeRow(config["display_item"].row())
+
+    def _add_stream_button_clicked(self, clicked):
+        dialog = StreamSettingsDialog(self._settings, self, -1)
         dialog.exec()
 
-    def _remove_video_button_clicked(self, clicked):
-        index = self.video_table.selectionModel().currentIndex().row()
+    def _remove_stream_button_clicked(self, index, clicked):
+        self._settings.remove_stream_config(index)
+
+    def _edit_stream_button_clicked(self, index, clicked):
+        dialog = StreamSettingsDialog(self._settings, self, index)
+        dialog.exec()
+
+    def _video_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Video", config["enabled"])
+
+        # Populate Model
+        stream_item = config["stream"]["display_item"]
+        item = stream_item.appendRow(row)
+        row_index = self.stream_model.indexFromItem(stream_item)
+        self.stream_table.expand(row_index)
+
+        # Store for use by streams
+        config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
+
+    def _video_config_changed(self, index, video_config):
+        item = video_config["display_item"]
+        item.setText(video_config.get("name"))
+
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != video_config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
+
+    def _video_config_removed(self, index, config):
+        config["stream"]["display_item"].removeRow(config["display_item"].row())
+
+    def _add_video_button_clicked(self, stream_index, clicked):
+        dialog = VideoSettingsDialog(self._settings, self, self._settings.get_stream_config(stream_index))
+        dialog.exec()
+
+    def _remove_video_button_clicked(self, index, clicked):
         self._settings.remove_video_config(index)
 
-    def _edit_video_button_clicked(self, clicked):
-        index = self.video_table.selectionModel().currentIndex().row()
+    def _edit_video_button_clicked(self, index, clicked):
         dialog = VideoSettingsDialog(self._settings, self, index)
         dialog.exec()
 
     def _audio_config_added(self, index, config):
+        # Build Row
+        row = self.__create_base_row(config["name"], "Audio", config["enabled"])
+
         # Populate Model
-        check_box = QStandardItem()
-        check_box.setEditable(True)
-        check_box.setCheckable(True)
-        check_box.setCheckState(Qt.CheckState.Checked)
-        check_box.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.audio_model.appendRow([
-            check_box,
-            QStandardItem(config.get("name")),
-            QStandardItem("0.0 kb/s"),
-        ])
+        stream_item = config["stream"]["display_item"]
+        item = stream_item.appendRow(row)
+        row_index = self.stream_model.indexFromItem(stream_item)
+        self.stream_table.expand(row_index)
 
-        # Handle connecting to playback after current signal has been handled because
-        # playback source hasn't been created yet.
-        QTimer.singleShot(0, lambda: self.__audio_config_added_playback(index))
-
-    def __audio_config_added_playback(self, index):
-        source = self._playback.audio_source(index)
-        source.bitrate.connect(lambda bitrate, i=index: self._audio_bitrate_updated(i, bitrate))
+        # Store for use by streams
+        config["display_item"] = row[0]
+        row[0].setData(config["index"], Qt.ItemDataRole.UserRole)
 
     def _audio_config_changed(self, index, config):
-        item = self.audio_model.item(index, 1)
+        item = config["display_item"]
         item.setText(config.get("name"))
 
-    def _audio_config_removed(self, index):
-        self.audio_model.removeRow(index)
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
 
-    def _add_audio_button_clicked(self, clicked):
-        dialog = AudioSettingsDialog(self._settings, self, -1)
+    def _audio_config_removed(self, index, config):
+        config["stream"]["display_item"].removeRow(config["display_item"].row())
+
+    def _add_audio_button_clicked(self, stream_index, clicked):
+        dialog = AudioSettingsDialog(self._settings, self, self._settings.get_stream_config(stream_index))
         dialog.exec()
 
-    def _remove_audio_button_clicked(self, clicked):
-        index = self.audio_table.selectionModel().currentIndex().row()
+    def _remove_audio_button_clicked(self, index, clicked):
         self._settings.remove_audio_config(index)
 
-    def _edit_audio_button_clicked(self, clicked):
-        index = self.audio_table.selectionModel().currentIndex().row()
+    def _edit_audio_button_clicked(self, index, clicked):
         dialog = AudioSettingsDialog(self._settings, self, index)
         dialog.exec()
-
-    def _fps_updated(self, index, fps):
-        item = self.video_model.item(index, 2)
-        item.setText(str(fps)+" FPS")
-
-    def _video_bitrate_updated(self, index, bitrate):
-        item = self.video_model.item(index, 3)
-        item.setText(f"{float(bitrate):.1f} kb/s")
-
-    def _audio_bitrate_updated(self, index, bitrate):
-        item = self.audio_model.item(index, 2)
-        item.setText(f"{float(bitrate):.2f} kb/s")
 
     def _settings_button_clicked(self, clicked):
         dialog = VideoSettingsDialog(self._settings, self)
@@ -304,3 +335,13 @@ class MainWindow(QMainWindow):
         else:
             self.__start_button.setText("Start")
             self.__start_button.setStyleSheet("background-color: green;")
+
+        # Disable Video/Audio state.
+        for row in range(self.stream_model.rowCount()):
+            stream_item = self.stream_model.item(row, 0)  # root item (column 0)
+            stream_item.setEnabled(not state)
+
+            for source in range(stream_item.rowCount()):
+                source_item = stream_item.child(source, 0)
+                source_item.setEnabled(not state)
+

@@ -91,30 +91,6 @@ class InputTab(QWidget):
             "framerate": self.framerate.value()
         }
 
-class OutputTab(QWidget):
-    def __init__(self, options):
-        super().__init__()
-
-        layout = QVBoxLayout()
-        address_layout = QHBoxLayout()
-        layout.addLayout(address_layout)
-
-        address_layout.addWidget(QLabel("Address:"))
-        self.address_edit = QLineEdit()
-        address_layout.addWidget(self.address_edit)
-
-        layout.addWidget(QLabel("Ex. udp://<remote_address>:5000"))
-
-        layout.addStretch()
-        self.setLayout(layout)
-
-    def LoadSettings(self, config):
-        self.address_edit.setText(config.get("address", "127.0.0.1:5000"))
-
-    def GetSettings(self):
-        return {"address": self.address_edit.text()}
-
-
 class EncoderTab(QWidget):
     def __init__(self, options):
         super().__init__()
@@ -189,15 +165,14 @@ class VideoSettingsDialog(QDialog):
         tabs = QTabWidget()
         self.__tabs = [
             InputTab(options),
-            EncoderTab(options),
-            OutputTab(options)
+            EncoderTab(options)
         ]
         display_names = ["Input", "Encoder", "Output"]
         for tab, label in zip(self.__tabs, display_names):
             tabs.addTab(tab, label)
 
         config = {}
-        if index >= 0:
+        if isinstance(self.__index, int):
             config = self.__settings.get_video_config(self.__index)
 
         self.name_edit.setText(config.get("name", "Default"))
@@ -222,12 +197,17 @@ class VideoSettingsDialog(QDialog):
         self.setLayout(layout)
 
     def __save_clicked(self):
-        config = {"name": self.name_edit.text()}
+        if isinstance(self.__index, int):
+            config = self.__settings.get_video_config(self.__index)
+        else:
+            config = {"enabled": True}
+
+        config["name"] = self.name_edit.text()
         for tab in self.__tabs:
             config.update(tab.GetSettings())
 
-        print("Save: ", config)
-        if self.__index >= 0:
+        if isinstance(self.__index, int):
             self.__settings.update_video_config(self.__index, config)
         else:
+            config["stream"] = self.__index
             self.__settings.add_video_config(config)

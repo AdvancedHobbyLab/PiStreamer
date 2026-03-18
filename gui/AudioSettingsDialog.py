@@ -25,7 +25,7 @@ class AudioSettingsDialog(QDialog):
         grid_layout = QGridLayout()
 
         config = {}
-        if self.__index >= 0:
+        if isinstance(self.__index, int):
             config = self.__settings.get_audio_config(self.__index)
 
         grid_layout.addWidget(QLabel("Name:"), 0, 0)
@@ -56,10 +56,6 @@ class AudioSettingsDialog(QDialog):
         self.encoder = QComboBox()
         self.encoder.setModel(model)
         grid_layout.addWidget(self.encoder, 4, 1)
-
-        grid_layout.addWidget(QLabel("Address:"), 5, 0)
-        self.address_edit = QLineEdit(config.get("address", "udp://127.0.0.1:5000"))
-        grid_layout.addWidget(self.address_edit, 5, 1)
 
         layout.addLayout(grid_layout)
 
@@ -111,14 +107,19 @@ class AudioSettingsDialog(QDialog):
         self.channels.setModel(channels)
 
     def __save_clicked(self):
-        config = {"name": self.name_edit.text()}
+        if isinstance(self.__index, int):
+            config = self.__settings.get_audio_config(self.__index)
+        else:
+            config = {"enabled": True}
+
+        config["name"] = self.name_edit.text()
         config["device"] = self.device.currentData()
         config["format"] = self.format.currentData()
         config["channels"] = self.channels.currentData()
         config["encoder"] = self.encoder.currentData()
-        config["address"] = self.address_edit.text()
 
-        if self.__index >= 0:
+        if isinstance(self.__index, int):
             self.__settings.update_audio_config(self.__index, config)
         else:
+            config["stream"] = self.__index
             self.__settings.add_audio_config(config)
