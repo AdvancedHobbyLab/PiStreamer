@@ -102,8 +102,6 @@ class PlaybackOptions():
                 r"card\s+(?P<card>\d+):\s+(?P<card_name>[^\s]+)\s+\[(?P<card_hr>[^\]]+)\],\s+device\s+(?P<device>\d+):"
             )
 
-            device_hr_re = re.compile(r"\[(?P<device_hr>[^\]]+)\]")
-
             lines = result.stdout.splitlines()
             i = 0
 
@@ -111,23 +109,17 @@ class PlaybackOptions():
                 line = lines[i]
                 card_match = card_re.search(line)
                 if card_match:
-                    card = card_match.group("card")
-                    device = card_match.group("device")
-                    card_name = card_match.group("card_name")
-
-                    # Look ahead for the first [human readable device name]
-                    device_hr = None
-                    for j in range(i + 1, min(i + 4, len(lines))):
-                        m = device_hr_re.search(lines[j])
-                        if m:
-                            device_hr = m.group("device_hr")
-                            break
+                    card = card_match.group("card")             # Card ID
+                    card_name = card_match.group("card_name")   # Internal name
+                    card_hr = card_match.group("card_hr")       # Human readable name
+                    device = card_match.group("device")         # Device ID
+                    device_hr = ""                              # Device human readable name, placeholder for now
 
                     devices.append({
                         "hw": f"hw:{card},{device}",
                         "card_index": int(card),
                         "device_index": int(device),
-                        "card_name": card_name,
+                        "card_name": card_hr,
                         "device_name": device_hr,
                     })
 
