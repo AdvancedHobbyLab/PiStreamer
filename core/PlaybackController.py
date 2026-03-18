@@ -27,8 +27,16 @@ class PlaybackStream(QObject):
     def start_playback(self):
         print("Starting Stream:", self.__config.get("name", "Unknown"))
 
+        # Don't start if not enabled
+        if not self.__config["enabled"]:
+            print("Stream disabled")
+            self.state_change.emit(False)
+            return
+
         # Check process state
         if self.__process.state() != QProcess.ProcessState.NotRunning:
+            print("Process already running")
+            self.state_change.emit(False)
             return
 
         command = ["ffmpeg"] + self.__build_command_string()
@@ -79,16 +87,20 @@ class PlaybackStream(QObject):
     def __build_command_string(self):
         cmd = []
         for audio in self.__config["audio_configs"]:
-            cmd += self.__build_audio_source_string(audio)
+            if audio["enabled"]:
+                cmd += self.__build_audio_source_string(audio)
 
         for video in self.__config["video_configs"]:
-            cmd += self.__build_video_source_string(video)
+            if video["enabled"]:
+                cmd += self.__build_video_source_string(video)
 
         for audio in self.__config["audio_configs"]:
-            cmd += self.__build_audio_encoder_string(audio)
+            if audio["enabled"]:
+                cmd += self.__build_audio_encoder_string(audio)
 
         for video in self.__config["video_configs"]:
-            cmd += self.__build_video_encoder_string(video)
+            if video["enabled"]:
+                cmd += self.__build_video_encoder_string(video)
 
         # Output Options
         output_address = self.__config["address"]
@@ -142,9 +154,9 @@ class PlaybackStream(QObject):
         audio_options = [
             "-thread_queue_size", "512",
             "-f", "alsa",
-            "-ac", "1",
+            "-ac", config["channels"],
             "-ar", "48000",
-            "-i", "plughw:3,0",
+            "-i", "plug"+config["device"],
         ]
         return audio_options
 
@@ -172,7 +184,6 @@ class PlaybackController(QObject):
         self.__settings.stream_config_added.connect(self.__stream_config_added)
         self.__settings.stream_config_changed.connect(self.__stream_config_changed)
         self.__settings.stream_config_removed.connect(self.__stream_config_removed)
-
         
         self.__streams = []
 
@@ -188,6 +199,7 @@ class PlaybackController(QObject):
     def start_playback(self):
         print()
         print("Start Playback...")
+        self.__state = True
         self.state_change.emit(True)
         for stream in self.__streams:
             print()

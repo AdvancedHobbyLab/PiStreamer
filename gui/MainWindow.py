@@ -58,6 +58,7 @@ class MainWindow(QMainWindow):
         # Build Model
         self.stream_model = QStandardItemModel()
         self.stream_model.setHorizontalHeaderLabels(["Name", "Type", "Frame Rate", "Bit Rate"])
+        self.stream_model.itemChanged.connect(self.__model_item_changed)
 
         tree = QTreeView()
         tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -91,6 +92,10 @@ class MainWindow(QMainWindow):
 
     def __open_context_menu(self, position):
         index = self.stream_table.indexAt(position)
+
+        # Don't allow editing if currently running
+        if self._playback.state():
+            return
 
         menu = QMenu()
         new_stream = menu.addAction("New Stream...")
@@ -162,6 +167,25 @@ class MainWindow(QMainWindow):
         else:
             self._playback.start_playback()
 
+    def __model_item_changed(self, item):
+        if item.isCheckable():
+            index = item.data(Qt.ItemDataRole.UserRole)
+            model_index = item.index()
+            type = self.stream_model.itemFromIndex(model_index.sibling(model_index.row(), 1)).text()
+            new_state = item.checkState() == Qt.CheckState.Checked
+            if type == "Stream":
+                stream = self._settings.get_stream_config(index)
+                stream["enabled"] = new_state
+                self._settings.update_stream_config(index, stream)
+            elif type == "Video":
+                video = self._settings.get_video_config(index)
+                video["enabled"] = new_state
+                self._settings.update_video_config(index, video)
+            elif type == "Audio":
+                audio = self._settings.get_audio_config(index)
+                audio["enabled"] = new_state
+                self._settings.update_audio_config(index, audio)
+
     def __create_base_row(self, name, type, enabled = True):
         # Populate Model
         row = [
@@ -207,6 +231,10 @@ class MainWindow(QMainWindow):
         item = config["display_item"]
         item.setText(config.get("name"))
 
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
+
     def _stream_config_removed(self, index, config):
         self.stream_model.removeRow(config["display_item"].row())
 
@@ -238,6 +266,10 @@ class MainWindow(QMainWindow):
     def _video_config_changed(self, index, video_config):
         item = video_config["display_item"]
         item.setText(video_config.get("name"))
+
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != video_config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
 
     def _video_config_removed(self, index, config):
         config["stream"]["display_item"].removeRow(config["display_item"].row())
@@ -271,6 +303,10 @@ class MainWindow(QMainWindow):
         item = config["display_item"]
         item.setText(config.get("name"))
 
+        checked = item.checkState() == Qt.CheckState.Checked
+        if checked != config["enabled"]:
+            item.setCheckState(Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked)
+
     def _audio_config_removed(self, index, config):
         config["stream"]["display_item"].removeRow(config["display_item"].row())
 
@@ -299,3 +335,13 @@ class MainWindow(QMainWindow):
         else:
             self.__start_button.setText("Start")
             self.__start_button.setStyleSheet("background-color: green;")
+
+        # Disable Video/Audio state.
+        for row in range(self.stream_model.rowCount()):
+            stream_item = self.stream_model.item(row, 0)  # root item (column 0)
+            stream_item.setEnabled(not state)
+
+            for source in range(stream_item.rowCount()):
+                source_item = stream_item.child(source, 0)
+                source_item.setEnabled(not state)
+
