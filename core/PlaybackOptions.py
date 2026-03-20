@@ -6,12 +6,6 @@ import subprocess
 import glob
 import re
 
-import gi
-gi.require_version("Gst", "1.0")
-from gi.repository import Gst
-
-Gst.init(None)
-
 class PlaybackOptions():
     def __init__(self):
         pass
